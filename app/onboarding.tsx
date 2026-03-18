@@ -16,8 +16,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 const { width } = Dimensions.get('window');
 
 const departments = [
-  { code: 'CEN', name: 'Computer Engineering' },
-  { code: 'EEN', name: 'Electrical Engineering' },
+  { code: 'CEF', name: 'Computer Engineering' },
+  { code: 'EEF', name: 'Electrical Engineering' },
   { code: 'CIV', name: 'Civil Engineering' },
   { code: 'MEF', name: 'Mechanical Engineering' },
   { code: 'CPE', name: 'Chemical & Petroleum Engineering', fullWidth: true },
