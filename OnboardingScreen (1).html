@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>FET Timetable — Onboarding</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0f0e0c;
+    --bg2: #171612;
+    --bg3: #1f1e19;
+    --border: rgba(255,255,255,0.08);
+    --border-active: rgba(255,200,80,0.5);
+    --text-primary: #f0ede6;
+    --text-secondary: #8a877e;
+    --text-muted: #4a4840;
+    --accent: #f5c842;
+    --accent-dim: rgba(245,200,66,0.12);
+    --accent-dim2: rgba(245,200,66,0.06);
+    --red: #e05c4b;
+    --radius: 14px;
+    --radius-sm: 8px;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text-primary);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    overflow-x: hidden;
+  }
+
+  /* Subtle grid bg */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(245,200,66,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(245,200,66,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .phone {
+    position: relative;
+    width: 390px;
+    min-height: 780px;
+    background: var(--bg);
+    border-radius: 44px;
+    border: 1.5px solid rgba(255,255,255,0.1);
+    overflow: hidden;
+    box-shadow:
+      0 0 0 8px rgba(255,255,255,0.03),
+      0 60px 120px rgba(0,0,0,0.8),
+      inset 0 1px 0 rgba(255,255,255,0.07);
+    z-index: 1;
+  }
+
+  /* Notch */
+  .notch {
+    position: absolute;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 120px;
+    height: 34px;
+    background: #000;
+    border-radius: 20px;
+    z-index: 10;
+  }
+
+  .screen {
+    padding: 70px 28px 40px;
+    display: flex;
+    flex-direction: column;
+    min-height: 780px;
+  }
+
+  /* Step indicator */
+  .steps {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 48px;
+    opacity: 0;
+    animation: fadeUp 0.5s ease 0.1s forwards;
+  }
+  .step-dot {
+    height: 3px;
+    border-radius: 2px;
+    background: var(--text-muted);
+    transition: all 0.4s ease;
+  }
+  .step-dot.active {
+    background: var(--accent);
+    width: 28px !important;
+  }
+
+  /* Header */
+  .header {
+    margin-bottom: 36px;
+    opacity: 0;
+    animation: fadeUp 0.5s ease 0.2s forwards;
+  }
+
+  .ub-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--accent-dim2);
+    border: 1px solid rgba(245,200,66,0.15);
+    border-radius: 20px;
+    padding: 4px 12px;
+    margin-bottom: 20px;
+  }
+  .ub-badge-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  .ub-badge span {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--accent);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .headline {
+    font-family: 'Syne', sans-serif;
+    font-size: 30px;
+    font-weight: 800;
+    line-height: 1.12;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+  }
+  .headline em {
+    font-style: normal;
+    color: var(--accent);
+  }
+
+  .subline {
+    margin-top: 12px;
+    font-size: 14px;
+    font-weight: 300;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+
+  /* Section label */
+  .section-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+  }
+
+  /* Department grid */
+  .dept-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 28px;
+    opacity: 0;
+    animation: fadeUp 0.5s ease 0.35s forwards;
+  }
+
+  .dept-card {
+    position: relative;
+    background: var(--bg3);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 14px;
+    cursor: pointer;
+    transition: all 0.22s ease;
+    overflow: hidden;
+  }
+  .dept-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--accent-dim);
+    opacity: 0;
+    transition: opacity 0.22s ease;
+    border-radius: inherit;
+  }
+  .dept-card:hover::before { opacity: 0.5; }
+  .dept-card.selected {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+  }
+  .dept-card.selected::before { opacity: 1; }
+
+  .dept-code {
+    font-family: 'Syne', sans-serif;
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--text-primary);
+    letter-spacing: -0.01em;
+    margin-bottom: 2px;
+    position: relative;
+    z-index: 1;
+  }
+  .dept-card.selected .dept-code { color: var(--accent); }
+
+  .dept-name {
+    font-size: 10px;
+    font-weight: 400;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    position: relative;
+    z-index: 1;
+  }
+
+  .dept-check {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    border: 1.5px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.22s ease;
+    z-index: 1;
+  }
+  .dept-card.selected .dept-check {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .dept-check svg { opacity: 0; transition: opacity 0.2s; }
+  .dept-card.selected .dept-check svg { opacity: 1; }
+
+  /* Level selector */
+  .level-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 32px;
+    opacity: 0;
+    animation: fadeUp 0.5s ease 0.45s forwards;
+  }
+
+  .level-btn {
+    flex: 1;
+    background: var(--bg3);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px 6px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.22s ease;
+    position: relative;
+  }
+  .level-btn:hover { border-color: rgba(245,200,66,0.3); }
+  .level-btn.selected {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+  }
+  .level-num {
+    font-family: 'Syne', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    transition: color 0.22s;
+    display: block;
+  }
+  .level-btn.selected .level-num { color: var(--accent); }
+  .level-sub {
+    font-size: 9px;
+    color: var(--text-muted);
+    display: block;
+    margin-top: 2px;
+    letter-spacing: 0.04em;
+  }
+
+  /* Prefs row */
+  .prefs-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 40px;
+    opacity: 0;
+    animation: fadeUp 0.5s ease 0.55s forwards;
+  }
+
+  .pref-card {
+    flex: 1;
+    background: var(--bg3);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    cursor: pointer;
+    transition: all 0.22s ease;
+  }
+  .pref-card:hover { border-color: rgba(245,200,66,0.2); }
+  .pref-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  .toggle-group {
+    display: flex;
+    gap: 4px;
+    background: var(--bg2);
+    border-radius: 8px;
+    padding: 3px;
+  }
+  .toggle-opt {
+    flex: 1;
+    text-align: center;
+    padding: 5px 4px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .toggle-opt.active {
+    background: var(--accent);
+    color: #1a1600;
+    font-weight: 600;
+  }
+
+  /* CTA Button */
+  .cta-wrap {
+    margin-top: auto;
+    opacity: 0;
+    animation: fadeUp 0.5s ease 0.65s forwards;
+  }
+
+  .cta-btn {
+    width: 100%;
+    background: var(--accent);
+    color: #1a1600;
+    border: none;
+    border-radius: var(--radius);
+    padding: 18px;
+    font-family: 'Syne', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
+  }
+  .cta-btn::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(255,255,255,0.12);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .cta-btn:hover::after { opacity: 1; }
+  .cta-btn:active { transform: scale(0.98); }
+  .cta-btn .arrow {
+    font-size: 18px;
+    transition: transform 0.2s;
+  }
+  .cta-btn:hover .arrow { transform: translateX(3px); }
+
+  .cta-note {
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 12px;
+    font-weight: 300;
+  }
+
+  /* Error state */
+  .error-msg {
+    display: none;
+    font-size: 11px;
+    color: var(--red);
+    margin-bottom: 12px;
+    text-align: center;
+    animation: shake 0.3s ease;
+  }
+  .error-msg.show { display: block; }
+
+  /* Animations */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-6px); }
+    75% { transform: translateX(6px); }
+  }
+  @keyframes slideOut {
+    to { opacity: 0; transform: translateX(-30px); }
+  }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(30px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+
+  /* Step 2 screen */
+  .screen-2 {
+    display: none;
+  }
+  .screen-2.visible {
+    display: flex;
+    flex-direction: column;
+    animation: slideIn 0.35s ease forwards;
+  }
+  .screen-1.hiding {
+    animation: slideOut 0.3s ease forwards;
+    pointer-events: none;
+  }
+
+  /* Done screen */
+  .done-screen {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    padding: 40px 0;
+    text-align: center;
+  }
+  .done-screen.visible { display: flex; animation: slideIn 0.35s ease forwards; }
+
+  .done-icon {
+    width: 80px; height: 80px;
+    background: var(--accent-dim);
+    border: 2px solid var(--accent);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    margin: 0 auto 24px;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  .done-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin-bottom: 10px;
+  }
+  .done-sub {
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-weight: 300;
+    line-height: 1.6;
+    max-width: 260px;
+    margin: 0 auto 32px;
+  }
+  .done-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px 18px;
+    margin-bottom: 12px;
+  }
+  .done-tag-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+  .done-tag-text { font-size: 13px; font-weight: 500; }
+
+  .open-btn {
+    margin-top: 36px;
+    width: 100%;
+    background: var(--accent);
+    color: #1a1600;
+    border: none;
+    border-radius: var(--radius);
+    padding: 18px;
+    font-family: 'Syne', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .open-btn:hover { filter: brightness(1.05); }
+  .open-btn:active { transform: scale(0.98); }
+
+  /* Outside decoration */
+  .outer-label {
+    position: fixed;
+    left: calc(50% - 195px - 120px);
+    top: 50%;
+    transform: translateY(-50%);
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    font-family: 'Syne', sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: rgba(255,255,255,0.06);
+    text-transform: uppercase;
+    font-weight: 700;
+    user-select: none;
+  }
+
+  @media (max-width: 500px) {
+    body { padding: 0; align-items: flex-start; }
+    .phone { border-radius: 0; border: none; width: 100%; min-height: 100vh; box-shadow: none; }
+    .outer-label { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="outer-label">University of Buea · FET · 2025/2026</div>
+
+<div class="phone">
+  <div class="notch"></div>
+
+  <!-- SCREEN 1: Department + Level -->
+  <div class="screen screen-1" id="screen1">
+    <!-- Step dots -->
+    <div class="steps">
+      <div class="step-dot active" style="width:28px" id="dot1"></div>
+      <div class="step-dot" style="width:10px" id="dot2"></div>
+      <div class="step-dot" style="width:10px" id="dot3"></div>
+    </div>
+
+    <div class="header">
+      <div class="ub-badge">
+        <div class="ub-badge-dot"></div>
+        <span>University of Buea · FET</span>
+      </div>
+      <h1 class="headline">Your<br/><em>timetable,</em><br/>your way.</h1>
+      <p class="subline">Tell us where you are and we'll show you exactly what matters.</p>
+    </div>
+
+    <!-- Department -->
+    <p class="section-label" style="opacity:0;animation:fadeUp 0.5s ease 0.3s forwards">Your department</p>
+    <div class="dept-grid" id="deptGrid">
+      <div class="dept-card" data-dept="CEN" onclick="selectDept(this)">
+        <div class="dept-check"><svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="#1a1600" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="dept-code">CEN</div>
+        <div class="dept-name">Computer Engineering</div>
+      </div>
+      <div class="dept-card" data-dept="EEN" onclick="selectDept(this)">
+        <div class="dept-check"><svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="#1a1600" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="dept-code">EEN</div>
+        <div class="dept-name">Electrical Engineering</div>
+      </div>
+      <div class="dept-card" data-dept="CIV" onclick="selectDept(this)">
+        <div class="dept-check"><svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="#1a1600" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="dept-code">CIV</div>
+        <div class="dept-name">Civil Engineering</div>
+      </div>
+      <div class="dept-card" data-dept="MEF" onclick="selectDept(this)">
+        <div class="dept-check"><svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="#1a1600" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="dept-code">MEF</div>
+        <div class="dept-name">Mechanical Engineering</div>
+      </div>
+      <div class="dept-card" data-dept="CPE" onclick="selectDept(this)" style="grid-column: span 2;">
+        <div class="dept-check"><svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="#1a1600" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="dept-code">CPE</div>
+        <div class="dept-name">Chemical &amp; Petroleum Engineering</div>
+      </div>
+    </div>
+
+    <!-- Level -->
+    <p class="section-label" style="opacity:0;animation:fadeUp 0.5s ease 0.4s forwards">Your level</p>
+    <div class="level-row" id="levelRow">
+      <div class="level-btn" data-level="200" onclick="selectLevel(this)">
+        <span class="level-num">200</span>
+        <span class="level-sub">LEVEL</span>
+      </div>
+      <div class="level-btn" data-level="300" onclick="selectLevel(this)">
+        <span class="level-num">300</span>
+        <span class="level-sub">LEVEL</span>
+      </div>
+      <div class="level-btn" data-level="400" onclick="selectLevel(this)">
+        <span class="level-num">400</span>
+        <span class="level-sub">LEVEL</span>
+      </div>
+      <div class="level-btn" data-level="500" onclick="selectLevel(this)">
+        <span class="level-num">500</span>
+        <span class="level-sub">LEVEL</span>
+      </div>
+    </div>
+
+    <div class="cta-wrap">
+      <div class="error-msg" id="errMsg">Please select your department and level to continue.</div>
+      <button class="cta-btn" onclick="goStep2()">
+        Next
+        <span class="arrow">→</span>
+      </button>
+      <p class="cta-note">Step 1 of 2 · You can change this anytime in Settings</p>
+    </div>
+  </div>
+
+  <!-- SCREEN 2: Preferences -->
+  <div class="screen screen-2" id="screen2">
+    <div class="steps">
+      <div class="step-dot" style="width:10px"></div>
+      <div class="step-dot active" style="width:28px"></div>
+      <div class="step-dot" style="width:10px"></div>
+    </div>
+
+    <div class="header">
+      <div class="ub-badge">
+        <div class="ub-badge-dot"></div>
+        <span>Almost there</span>
+      </div>
+      <h1 class="headline">Set your<br/><em>preferences.</em></h1>
+      <p class="subline">These can always be changed later from your settings.</p>
+    </div>
+
+    <p class="section-label">Display settings</p>
+    <div class="prefs-row" style="margin-bottom:16px">
+      <div class="pref-card">
+        <div class="pref-label">Theme</div>
+        <div class="toggle-group">
+          <div class="toggle-opt active" id="themeDark" onclick="setTheme('dark')">Dark</div>
+          <div class="toggle-opt" id="themeLight" onclick="setTheme('light')">Light</div>
+        </div>
+      </div>
+      <div class="pref-card">
+        <div class="pref-label">Time format</div>
+        <div class="toggle-group">
+          <div class="toggle-opt active" id="time24" onclick="setTime('24')">24h</div>
+          <div class="toggle-opt" id="time12" onclick="setTime('12')">12h</div>
+        </div>
+      </div>
+    </div>
+
+    <p class="section-label">First day of week</p>
+    <div class="prefs-row" style="margin-bottom:28px">
+      <div class="pref-card" style="flex:1">
+        <div class="pref-label">Starts on</div>
+        <div class="toggle-group">
+          <div class="toggle-opt active" id="startMon" onclick="setStart('mon')">Mon</div>
+          <div class="toggle-opt" id="startSun" onclick="setStart('sun')">Sun</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Preview card -->
+    <p class="section-label">Preview</p>
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:32px;position:relative;overflow:hidden">
+      <div style="position:absolute;top:0;right:0;width:3px;height:100%;background:var(--accent);border-radius:0 var(--radius) var(--radius) 0"></div>
+      <div style="font-size:10px;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:8px" id="previewTime">09:00 – 11:00</div>
+      <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:15px;color:var(--text-primary);margin-bottom:3px" id="previewDept">CEF238 · C/C++ Programming</div>
+      <div style="font-size:12px;color:var(--text-secondary)">FET-BGFL · Dr. Nguti</div>
+      <div style="margin-top:10px;display:flex;gap:6px;align-items:center">
+        <div style="background:var(--accent-dim);border:1px solid rgba(245,200,66,0.2);border-radius:6px;padding:3px 8px;font-size:10px;font-weight:600;color:var(--accent)" id="previewDeptTag">CEN</div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:10px;color:var(--text-secondary)" id="previewLevelTag">Level 200</div>
+      </div>
+    </div>
+
+    <div class="cta-wrap">
+      <button class="cta-btn" onclick="finish()">
+        Open my timetable
+        <span class="arrow">→</span>
+      </button>
+      <p class="cta-note" style="margin-top:12px;cursor:pointer;text-decoration:underline" onclick="goBack()">← Back</p>
+    </div>
+  </div>
+
+  <!-- DONE SCREEN -->
+  <div class="screen done-screen" id="screenDone">
+    <div class="done-icon">🎓</div>
+    <h2 class="done-title">You're all set!</h2>
+    <p class="done-sub">Your personalised timetable is ready. Classes filtered for <span id="doneInfo" style="color:var(--accent);font-weight:500">your dept & level</span>.</p>
+    <div class="done-tag">
+      <div class="done-tag-dot"></div>
+      <span class="done-tag-text" id="doneSummary">CEN · Level 200 · Dark mode</span>
+    </div>
+    <div style="width:100%">
+      <button class="open-btn">Open timetable →</button>
+    </div>
+    <p style="margin-top:20px;font-size:11px;color:var(--text-muted)">Change preferences anytime in Settings</p>
+  </div>
+
+</div>
+
+<script>
+let selectedDept = null;
+let selectedLevel = null;
+let theme = 'dark';
+let timeFormat = '24';
+let weekStart = 'mon';
+
+function selectDept(el) {
+  document.querySelectorAll('.dept-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedDept = el.dataset.dept;
+  updatePreview();
+}
+
+function selectLevel(el) {
+  document.querySelectorAll('.level-btn').forEach(b => b.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedLevel = el.dataset.level;
+  updatePreview();
+}
+
+function updatePreview() {
+  if (selectedDept) document.getElementById('previewDeptTag').textContent = selectedDept;
+  if (selectedLevel) document.getElementById('previewLevelTag').textContent = 'Level ' + selectedLevel;
+  const code = selectedDept === 'EEN' ? 'EEF262' :
+               selectedDept === 'CIV' ? 'CIV202' :
+               selectedDept === 'MEF' ? 'MEF204' :
+               selectedDept === 'CPE' ? 'CPE208' : 'CEF238';
+  const name = selectedDept === 'EEN' ? 'Physics for Engineering II' :
+               selectedDept === 'CIV' ? 'Materials Science & Technology' :
+               selectedDept === 'MEF' ? 'Basics of Mechanical Drawing' :
+               selectedDept === 'CPE' ? 'Chemical Process Principle' : 'C/C++ Programming';
+  document.getElementById('previewDept').textContent = code + ' · ' + name;
+
+  if (timeFormat === '12') {
+    document.getElementById('previewTime').textContent = '9:00 AM – 11:00 AM';
+  } else {
+    document.getElementById('previewTime').textContent = '09:00 – 11:00';
+  }
+}
+
+function setTheme(t) {
+  theme = t;
+  document.getElementById('themeDark').classList.toggle('active', t === 'dark');
+  document.getElementById('themeLight').classList.toggle('active', t === 'light');
+}
+
+function setTime(t) {
+  timeFormat = t;
+  document.getElementById('time24').classList.toggle('active', t === '24');
+  document.getElementById('time12').classList.toggle('active', t === '12');
+  updatePreview();
+}
+
+function setStart(s) {
+  weekStart = s;
+  document.getElementById('startMon').classList.toggle('active', s === 'mon');
+  document.getElementById('startSun').classList.toggle('active', s === 'sun');
+}
+
+function goStep2() {
+  if (!selectedDept || !selectedLevel) {
+    const err = document.getElementById('errMsg');
+    err.classList.add('show');
+    setTimeout(() => err.classList.remove('show'), 3000);
+    return;
+  }
+  const s1 = document.getElementById('screen1');
+  const s2 = document.getElementById('screen2');
+  s1.classList.add('hiding');
+  setTimeout(() => {
+    s1.style.display = 'none';
+    s2.classList.add('visible');
+    updatePreview();
+  }, 280);
+
+  document.getElementById('dot1').classList.remove('active');
+  document.getElementById('dot1').style.width = '10px';
+  document.getElementById('dot2').classList.add('active');
+}
+
+function goBack() {
+  const s1 = document.getElementById('screen1');
+  const s2 = document.getElementById('screen2');
+  s2.classList.remove('visible');
+  s1.style.display = 'flex';
+  s1.classList.remove('hiding');
+  s1.style.animation = 'slideIn 0.3s ease forwards';
+}
+
+function finish() {
+  const s2 = document.getElementById('screen2');
+  const sd = document.getElementById('screenDone');
+  s2.classList.remove('visible');
+  setTimeout(() => {
+    sd.classList.add('visible');
+    const themeLabel = theme === 'dark' ? 'Dark mode' : 'Light mode';
+    document.getElementById('doneSummary').textContent = selectedDept + ' · Level ' + selectedLevel + ' · ' + themeLabel;
+    document.getElementById('doneInfo').textContent = selectedDept + ' Level ' + selectedLevel;
+  }, 300);
+}
+</script>
+</body>
+</html>

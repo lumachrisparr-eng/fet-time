@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>FET Timetable v2</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+body.dark{
+  --bg:#0f0e0c;--bg2:#171612;--bg3:#1f1e19;--bg4:#272620;--bg5:#2e2d27;
+  --b1:rgba(255,255,255,0.07);--b2:rgba(255,255,255,0.13);--b3:rgba(255,255,255,0.2);
+  --t1:#f0ede6;--t2:#8a877e;--t3:#4a4840;
+  --acc:#f5c842;--aD:rgba(245,200,66,0.13);--aD2:rgba(245,200,66,0.06);
+  --green:#4cbb7f;--gD:rgba(76,187,127,0.13);
+  --blue:#5b9cf5;--bD:rgba(91,156,245,0.13);
+  --red:#e05c4b;--rD:rgba(224,92,75,0.13);
+  --purple:#a78bfa;--pD:rgba(167,139,250,0.13);
+  --tabBg:#0c0b09;--shadow:0 20px 60px rgba(0,0,0,0.7);
+}
+body.light{
+  --bg:#f4f1ea;--bg2:#ece8de;--bg3:#ffffff;--bg4:#e8e3d8;--bg5:#ddd8cb;
+  --b1:rgba(0,0,0,0.07);--b2:rgba(0,0,0,0.13);--b3:rgba(0,0,0,0.2);
+  --t1:#1a1812;--t2:#6b6860;--t3:#b0ada5;
+  --acc:#b8900a;--aD:rgba(184,144,10,0.12);--aD2:rgba(184,144,10,0.06);
+  --green:#2a9d60;--gD:rgba(42,157,96,0.12);
+  --blue:#2563eb;--bD:rgba(37,99,235,0.12);
+  --red:#c0392b;--rD:rgba(192,57,43,0.12);
+  --purple:#7c3aed;--pD:rgba(124,58,237,0.12);
+  --tabBg:#ece8de;--shadow:0 20px 60px rgba(0,0,0,0.15);
+}
+
+body{
+  background:#080807;font-family:'DM Sans',sans-serif;
+  min-height:100vh;display:flex;align-items:center;justify-content:center;
+  padding:24px;
+}
+body::before{
+  content:'';position:fixed;inset:0;
+  background-image:linear-gradient(rgba(245,200,66,.02) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(245,200,66,.02) 1px,transparent 1px);
+  background-size:48px 48px;pointer-events:none;z-index:0;
+}
+
+/* ── PHONE ── */
+.phone{
+  position:relative;width:390px;height:844px;
+  background:var(--bg);border-radius:52px;
+  border:1.5px solid rgba(255,255,255,0.09);
+  overflow:hidden;
+  box-shadow:var(--shadow),0 0 0 8px rgba(255,255,255,0.02);
+  z-index:1;display:flex;flex-direction:column;
+  transition:background .3s;
+}
+.notch{position:absolute;top:14px;left:50%;transform:translateX(-50%);width:126px;height:36px;background:#000;border-radius:20px;z-index:100;}
+.sbar{position:absolute;top:0;left:0;right:0;height:54px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 26px 8px;z-index:50;pointer-events:none;}
+.sbar-t{font-size:12px;font-weight:600;color:var(--t2);}
+.sbar-i{font-size:11px;color:var(--t2);}
+
+/* ── VIEWS ── */
+.view{position:absolute;inset:0;display:flex;flex-direction:column;overflow:hidden;opacity:0;pointer-events:none;transform:translateY(10px);transition:opacity .25s,transform .25s;}
+.view.on{opacity:1;pointer-events:all;transform:translateY(0);}
+
+/* ── SCROLL ── */
+.scr{flex:1;overflow-y:auto;scrollbar-width:none;padding-bottom:90px;}
+.scr::-webkit-scrollbar{display:none;}
+
+/* ── TAB BAR ── */
+.tbar{
+  position:absolute;bottom:0;left:0;right:0;height:82px;
+  background:var(--tabBg);border-top:1px solid var(--b1);
+  display:flex;align-items:flex-start;justify-content:space-around;
+  padding-top:10px;z-index:90;transition:background .3s,border-color .3s;
+}
+.ti{display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;padding:6px 16px;border-radius:14px;transition:all .2s;}
+.ti-icon{width:26px;height:26px;display:flex;align-items:center;justify-content:center;border-radius:8px;transition:all .2s;}
+.ti-label{font-size:10px;font-weight:500;color:var(--t3);transition:color .2s;letter-spacing:.02em;}
+.ti.act .ti-label{color:var(--acc);}
+.ti.act .ti-icon{background:var(--aD);}
+
+/* ── SHARED COMPONENTS ── */
+.sec-label{font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--t3);margin-bottom:10px;}
+.card-group{background:var(--bg3);border:1px solid var(--b1);border-radius:18px;overflow:hidden;margin-bottom:16px;}
+.row{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--b1);cursor:pointer;transition:background .15s;}
+.row:last-child{border-bottom:none;}
+.row:active{background:var(--bg4);}
+.row-l{display:flex;flex-direction:column;gap:2px;}
+.rl{font-size:13px;font-weight:500;color:var(--t1);}
+.rs{font-size:11px;color:var(--t2);font-weight:300;}
+.rv{font-size:12px;font-weight:600;color:var(--acc);}
+
+/* toggle */
+.tog{width:46px;height:27px;border-radius:14px;background:var(--bg4);border:1px solid var(--b2);position:relative;cursor:pointer;transition:background .25s,border-color .25s;flex-shrink:0;}
+.tog.on{background:var(--acc);border-color:var(--acc);}
+.tog-k{position:absolute;top:3px;left:3px;width:19px;height:19px;border-radius:50%;background:#fff;transition:transform .25s cubic-bezier(.4,0,.2,1);box-shadow:0 1px 3px rgba(0,0,0,.3);}
+.tog.on .tog-k{transform:translateX(19px);}
+
+/* segmented */
+.seg{display:flex;background:var(--bg4);border-radius:10px;padding:3px;gap:2px;border:1px solid var(--b1);}
+.sgo{flex:1;padding:5px 10px;border-radius:8px;text-align:center;font-size:11px;font-weight:500;color:var(--t2);cursor:pointer;transition:all .18s;white-space:nowrap;}
+.sgo.on{background:var(--acc);color:#1a1600;font-weight:700;}
+
+/* badge pill */
+.pill{display:inline-flex;align-items:center;gap:5px;border-radius:20px;padding:4px 10px;}
+.pill-dot{width:5px;height:5px;border-radius:50%;}
+
+/* section heading */
+.sh{padding:20px 20px 8px;display:flex;align-items:center;justify-content:space-between;}
+.sh-title{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--t1);letter-spacing:-.02em;}
+.sh-sub{font-size:11px;color:var(--t2);}
+
+/* ══════════════════════════════════
+   ONBOARDING
+══════════════════════════════════ */
+#vOB .scr{padding:72px 22px 40px;}
+.ob-badge{display:inline-flex;align-items:center;gap:6px;background:var(--aD2);border:1px solid rgba(245,200,66,.15);border-radius:20px;padding:4px 12px;margin-bottom:20px;}
+.ob-badge-dot{width:6px;height:6px;border-radius:50%;background:var(--acc);animation:pulse 2s ease-in-out infinite;}
+.ob-badge span{font-size:11px;font-weight:500;color:var(--acc);letter-spacing:.06em;text-transform:uppercase;}
+.ob-h{font-family:'Syne',sans-serif;font-size:28px;font-weight:800;line-height:1.12;letter-spacing:-.02em;color:var(--t1);margin-bottom:10px;}
+.ob-h em{font-style:normal;color:var(--acc);}
+.ob-s{font-size:13px;font-weight:300;color:var(--t2);line-height:1.6;margin-bottom:28px;}
+.dept-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:22px;}
+.dc{position:relative;background:var(--bg3);border:1.5px solid var(--b1);border-radius:14px;padding:15px 13px;cursor:pointer;transition:all .2s;overflow:hidden;}
+.dc::before{content:'';position:absolute;inset:0;background:var(--aD);opacity:0;transition:opacity .2s;border-radius:inherit;}
+.dc.sel{border-color:var(--acc);} .dc.sel::before{opacity:1;}
+.dc-code{font-family:'Syne',sans-serif;font-size:17px;font-weight:800;color:var(--t1);margin-bottom:2px;position:relative;z-index:1;transition:color .2s;}
+.dc.sel .dc-code{color:var(--acc);}
+.dc-name{font-size:10px;color:var(--t2);line-height:1.4;position:relative;z-index:1;}
+.dc-chk{position:absolute;top:10px;right:10px;width:18px;height:18px;border-radius:50%;border:1.5px solid var(--b1);display:flex;align-items:center;justify-content:center;transition:all .2s;z-index:1;}
+.dc.sel .dc-chk{background:var(--acc);border-color:var(--acc);}
+.dc-chk svg{opacity:0;transition:opacity .18s;} .dc.sel .dc-chk svg{opacity:1;}
+.lvl-row{display:flex;gap:7px;margin-bottom:26px;}
+.lb{flex:1;background:var(--bg3);border:1.5px solid var(--b1);border-radius:10px;padding:11px 4px;text-align:center;cursor:pointer;transition:all .2s;}
+.lb.sel{border-color:var(--acc);background:var(--aD);}
+.lb-n{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--t2);display:block;transition:color .2s;}
+.lb.sel .lb-n{color:var(--acc);}
+.lb-s{font-size:8px;color:var(--t3);display:block;margin-top:2px;letter-spacing:.04em;}
+.cta{width:100%;background:var(--acc);color:#1a1600;border:none;border-radius:14px;padding:17px;font-family:'Syne',sans-serif;font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:all .2s;}
+.cta:active{transform:scale(.98);}
+.cta-arr{font-size:17px;transition:transform .2s;} .cta:hover .cta-arr{transform:translateX(3px);}
+.err{font-size:11px;color:var(--red);margin-bottom:10px;text-align:center;display:none;}
+.err.on{display:block;animation:shake .3s ease;}
+
+/* ══════════════════════════════════
+   HOME
+══════════════════════════════════ */
+.h-hdr{padding:60px 20px 0;}
+.h-greet{font-size:11px;font-weight:500;color:var(--t2);letter-spacing:.04em;text-transform:uppercase;margin-bottom:4px;}
+.h-title{font-family:'Syne',sans-serif;font-size:23px;font-weight:800;color:var(--t1);letter-spacing:-.02em;line-height:1.15;}
+.h-title em{font-style:normal;color:var(--acc);}
+.h-meta{display:flex;align-items:center;gap:7px;margin-top:8px;flex-wrap:wrap;}
+.h-badge{display:flex;align-items:center;gap:5px;background:var(--aD);border:1px solid rgba(245,200,66,.2);border-radius:20px;padding:4px 10px;}
+.h-badge span{font-size:11px;font-weight:600;color:var(--acc);}
+.h-bdot{width:5px;height:5px;border-radius:50%;background:var(--acc);}
+.notif-badge{display:flex;align-items:center;gap:4px;background:var(--gD);border:1px solid rgba(76,187,127,.2);border-radius:20px;padding:4px 9px;cursor:pointer;}
+.notif-badge span{font-size:10px;font-weight:600;color:var(--green);}
+
+/* day strip */
+.dstrip{padding:14px 0 0;overflow-x:auto;scrollbar-width:none;}
+.dstrip::-webkit-scrollbar{display:none;}
+.dstrip-inner{display:flex;gap:6px;padding:0 20px;width:max-content;}
+.dchip{padding:6px 13px;border-radius:20px;font-size:11px;font-weight:500;color:var(--t2);border:1px solid var(--b1);background:var(--bg3);cursor:pointer;transition:all .18s;white-space:nowrap;position:relative;}
+.dchip.on{background:var(--acc);color:#1a1600;font-weight:700;border-color:var(--acc);}
+.dchip.has::after{content:'';position:absolute;bottom:4px;left:50%;transform:translateX(-50%);width:3px;height:3px;border-radius:50%;background:var(--acc);}
+.dchip.on::after{background:#1a1600;}
+
+/* course cards */
+.clist{padding:14px 20px 0;}
+.tgrp{margin-bottom:18px;}
+.t-lbl{font-size:10px;font-weight:600;color:var(--t3);letter-spacing:.1em;text-transform:uppercase;margin-bottom:7px;padding-left:2px;}
+.cc{background:var(--bg3);border:1px solid var(--b1);border-radius:14px;padding:13px 13px 13px 15px;margin-bottom:7px;display:flex;flex-direction:column;gap:3px;position:relative;overflow:hidden;cursor:pointer;transition:all .18s;}
+.cc::before{content:'';position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:2px;background:var(--acc);}
+.cc.notif-on::before{background:var(--green);}
+.cc:active{transform:scale(.99);}
+.cc-top{display:flex;justify-content:space-between;align-items:center;}
+.cc-code{font-family:'Syne',sans-serif;font-size:12px;font-weight:700;color:var(--acc);}
+.cc-right{display:flex;align-items:center;gap:6px;}
+.cc-hall{font-size:10px;font-weight:500;color:var(--t3);background:var(--bg4);border-radius:6px;padding:2px 6px;}
+.cc-bell{width:22px;height:22px;border-radius:7px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .18s;background:transparent;border:none;}
+.cc-bell.on{background:var(--gD);}
+.cc-name{font-size:13px;font-weight:500;color:var(--t1);line-height:1.3;}
+.cc-lect{font-size:11px;color:var(--t2);font-weight:300;}
+.empty{text-align:center;padding:44px 20px;}
+.empty-i{font-size:38px;margin-bottom:12px;opacity:.35;}
+.empty-t{font-size:13px;color:var(--t2);font-weight:300;}
+
+/* ══════════════════════════════════
+   SETTINGS
+══════════════════════════════════ */
+#vST .scr{padding-top:0;}
+.st-hdr{padding:60px 20px 18px;}
+.st-title{font-family:'Syne',sans-serif;font-size:23px;font-weight:800;color:var(--t1);letter-spacing:-.02em;}
+.st-sub{font-size:12px;color:var(--t2);font-weight:300;margin-top:3px;}
+.st-sec{margin:0 20px 16px;}
+
+/* dept mini */
+.dm-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;padding:12px 14px;}
+.dm{background:var(--bg4);border:1.5px solid var(--b1);border-radius:10px;padding:10px 11px;cursor:pointer;transition:all .18s;}
+.dm.sel{border-color:var(--acc);background:var(--aD);}
+.dm-code{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--t2);transition:color .18s;}
+.dm.sel .dm-code{color:var(--acc);}
+.dm-name{font-size:9px;color:var(--t3);}
+.lv-row{display:flex;gap:6px;padding:0 14px 14px;}
+.lm{flex:1;background:var(--bg4);border:1.5px solid var(--b1);border-radius:8px;padding:8px 4px;text-align:center;cursor:pointer;transition:all .18s;}
+.lm.sel{border-color:var(--acc);background:var(--aD);}
+.lm span{font-family:'Syne',sans-serif;font-size:12px;font-weight:700;color:var(--t2);display:block;transition:color .18s;}
+.lm.sel span{color:var(--acc);}
+
+/* notif settings panel */
+.notif-panel{background:var(--bg3);border:1px solid var(--b1);border-radius:18px;overflow:hidden;margin-bottom:16px;}
+.notif-header{padding:14px 16px;border-bottom:1px solid var(--b1);display:flex;align-items:center;justify-content:space-between;}
+.notif-title{font-size:13px;font-weight:500;color:var(--t1);}
+.notif-sub{font-size:11px;color:var(--t2);font-weight:300;margin-top:2px;}
+.reminder-opts{padding:12px 14px;display:flex;gap:7px;flex-wrap:wrap;}
+.ropt{padding:6px 12px;border-radius:20px;border:1.5px solid var(--b1);background:var(--bg4);font-size:11px;font-weight:500;color:var(--t2);cursor:pointer;transition:all .18s;white-space:nowrap;}
+.ropt.sel{border-color:var(--acc);background:var(--aD);color:var(--acc);font-weight:700;}
+.ropt-label{font-size:10px;color:var(--t3);padding:0 14px 12px;letter-spacing:.04em;}
+
+/* ── AI UPLOAD PANEL ── */
+.upload-panel{
+  background:var(--bg3);border:1px solid var(--b1);
+  border-radius:18px;overflow:hidden;margin-bottom:16px;
+}
+.up-header{
+  padding:14px 16px;border-bottom:1px solid var(--b1);
+  display:flex;align-items:center;gap:10px;
+}
+.up-icon{
+  width:36px;height:36px;border-radius:10px;
+  background:var(--pD);border:1px solid rgba(167,139,250,.2);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.up-title{font-size:13px;font-weight:500;color:var(--t1);}
+.up-sub{font-size:11px;color:var(--t2);font-weight:300;margin-top:1px;}
+
+/* drop zone */
+.dropzone{
+  margin:14px;border:1.5px dashed var(--b2);border-radius:14px;
+  padding:28px 16px;text-align:center;cursor:pointer;
+  transition:all .2s;background:var(--bg4);position:relative;
+}
+.dropzone:hover,.dropzone.drag{border-color:var(--purple);background:var(--pD);}
+.dz-icon{font-size:28px;margin-bottom:10px;opacity:.5;}
+.dz-title{font-size:13px;font-weight:500;color:var(--t1);margin-bottom:4px;}
+.dz-sub{font-size:11px;color:var(--t2);font-weight:300;line-height:1.5;}
+.dz-types{display:flex;gap:6px;justify-content:center;margin-top:10px;}
+.dz-type{padding:3px 9px;border-radius:6px;font-size:10px;font-weight:600;border:1px solid var(--b2);color:var(--t3);}
+.dz-input{position:absolute;inset:0;opacity:0;cursor:pointer;}
+
+/* processing states */
+.up-states{padding:0 14px 14px;display:none;}
+.up-states.show{display:block;}
+
+/* progress bar */
+.prog-wrap{background:var(--bg4);border-radius:8px;height:6px;overflow:hidden;margin:8px 0;}
+.prog-bar{height:100%;border-radius:8px;background:var(--purple);transition:width .4s ease;width:0%;}
+
+.up-step{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 12px;border-radius:10px;background:var(--bg4);
+  border:1px solid var(--b1);margin-bottom:7px;
+}
+.up-step-icon{
+  width:28px;height:28px;border-radius:8px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:13px;flex-shrink:0;transition:all .3s;
+}
+.up-step-icon.wait{background:var(--bg5);opacity:.5;}
+.up-step-icon.spin{background:var(--pD);animation:spin 1s linear infinite;}
+.up-step-icon.done{background:var(--gD);}
+.up-step-icon.err{background:var(--rD);}
+.up-step-text{font-size:12px;font-weight:500;color:var(--t2);transition:color .3s;}
+.up-step.active .up-step-text{color:var(--t1);}
+
+/* result preview */
+.up-result{
+  margin:0 14px 14px;background:var(--bg4);border:1px solid var(--b1);
+  border-radius:14px;overflow:hidden;display:none;
+}
+.up-result.show{display:block;}
+.up-result-header{
+  padding:12px 14px;border-bottom:1px solid var(--b1);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.ur-title{font-size:12px;font-weight:600;color:var(--t1);}
+.ur-count{font-size:11px;font-weight:600;color:var(--green);background:var(--gD);border-radius:6px;padding:2px 8px;}
+.up-result-preview{padding:10px 14px;max-height:140px;overflow:hidden;position:relative;}
+.up-result-preview::after{
+  content:'';position:absolute;bottom:0;left:0;right:0;height:40px;
+  background:linear-gradient(transparent,var(--bg4));
+}
+.preview-course{
+  display:flex;align-items:center;gap:8px;padding:5px 0;
+  border-bottom:1px solid var(--b1);font-size:11px;
+}
+.preview-course:last-child{border-bottom:none;}
+.pc-code{font-family:'Syne',sans-serif;font-weight:700;color:var(--acc);min-width:60px;}
+.pc-name{color:var(--t2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.pc-day{color:var(--t3);min-width:26px;}
+
+.apply-btn{
+  margin:0 14px 14px;width:calc(100% - 28px);
+  background:var(--purple);color:#fff;border:none;
+  border-radius:12px;padding:13px;font-family:'Syne',sans-serif;
+  font-size:13px;font-weight:700;cursor:pointer;display:flex;
+  align-items:center;justify-content:center;gap:6px;transition:all .2s;
+}
+.apply-btn:active{transform:scale(.98);}
+.apply-btn.hide{display:none;}
+
+/* save btn */
+.save-btn{
+  margin:0 20px;width:calc(100% - 40px);
+  background:var(--acc);color:#1a1600;border:none;
+  border-radius:12px;padding:14px;font-family:'Syne',sans-serif;
+  font-size:14px;font-weight:700;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:6px;transition:all .2s;
+}
+.save-btn:active{transform:scale(.98);}
+
+/* toast */
+.toast{
+  position:absolute;bottom:94px;left:50%;transform:translateX(-50%) translateY(16px);
+  background:var(--bg3);border:1px solid var(--b2);border-radius:20px;
+  padding:8px 18px;font-size:12px;font-weight:500;color:var(--t1);
+  opacity:0;transition:all .3s;pointer-events:none;white-space:nowrap;z-index:200;
+}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0);}
+
+/* ── ANIMATIONS ── */
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes shimmer{0%{opacity:.5}50%{opacity:1}100%{opacity:.5}}
+@keyframes popIn{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}
+
+@media(max-width:500px){
+  body{padding:0;background:var(--bg);}
+  .phone{border-radius:0;border:none;width:100%;height:100dvh;box-shadow:none;}
+  body::before{display:none;}
+}
+</style>
+</head>
+<body class="dark">
+<div class="phone" id="phone">
+  <div class="notch"></div>
+  <div class="sbar">
+    <span class="sbar-t" id="stTime">9:41</span>
+    <span class="sbar-i">●●● WiFi 🔋</span>
+  </div>
+
+  <!-- ════════════════════════════
+       ONBOARDING
+  ════════════════════════════════ -->
+  <div class="view on" id="vOB">
+    <div class="scr" style="padding:72px 22px 40px">
+      <div class="ob-badge"><div class="ob-badge-dot"></div><span>University of Buea · FET</span></div>
+      <h1 class="ob-h">Your<br/><em>timetable,</em><br/>your way.</h1>
+      <p class="ob-s">Pick your department and level — we'll only show classes that matter to you.</p>
+
+      <p class="sec-label">Your department</p>
+      <div class="dept-grid" id="ob-dg">
+        <div class="dc" data-dept="CEN" onclick="obDept(this)"><div class="dc-chk"><svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="#1a1600" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="dc-code">CEN</div><div class="dc-name">Computer Engineering</div></div>
+        <div class="dc" data-dept="EEN" onclick="obDept(this)"><div class="dc-chk"><svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="#1a1600" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="dc-code">EEN</div><div class="dc-name">Electrical Engineering</div></div>
+        <div class="dc" data-dept="CIV" onclick="obDept(this)"><div class="dc-chk"><svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="#1a1600" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="dc-code">CIV</div><div class="dc-name">Civil Engineering</div></div>
+        <div class="dc" data-dept="MEF" onclick="obDept(this)"><div class="dc-chk"><svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="#1a1600" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="dc-code">MEF</div><div class="dc-name">Mechanical Engineering</div></div>
+        <div class="dc" data-dept="CPE" onclick="obDept(this)" style="grid-column:span 2"><div class="dc-chk"><svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="#1a1600" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="dc-code">CPE</div><div class="dc-name">Chemical &amp; Petroleum Engineering</div></div>
+      </div>
+
+      <p class="sec-label">Your level</p>
+      <div class="lvl-row" id="ob-lr">
+        <div class="lb" data-level="200" onclick="obLevel(this)"><span class="lb-n">200</span><span class="lb-s">LEVEL</span></div>
+        <div class="lb" data-level="300" onclick="obLevel(this)"><span class="lb-n">300</span><span class="lb-s">LEVEL</span></div>
+        <div class="lb" data-level="400" onclick="obLevel(this)"><span class="lb-n">400</span><span class="lb-s">LEVEL</span></div>
+        <div class="lb" data-level="500" onclick="obLevel(this)"><span class="lb-n">500</span><span class="lb-s">LEVEL</span></div>
+      </div>
+
+      <div class="err" id="ob-err">Please select your department and level.</div>
+      <button class="cta" onclick="obFinish()">Open my timetable <span class="cta-arr">→</span></button>
+      <p style="text-align:center;font-size:11px;color:var(--t3);margin-top:10px;font-weight:300">You can change these anytime in Settings</p>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════
+       HOME
+  ════════════════════════════════ -->
+  <div class="view" id="vHM">
+    <div class="h-hdr">
+      <div class="h-greet" id="hGreet">Good morning</div>
+      <div class="h-title" id="hTitle">Loading…</div>
+      <div class="h-meta">
+        <div class="h-badge"><div class="h-bdot"></div><span id="hBadge">CEN · L200</span></div>
+        <div class="notif-badge" id="notifBadge" onclick="showView('vST')" style="display:none">
+          <span id="notifCount">0 reminders on</span>
+        </div>
+      </div>
+    </div>
+    <div class="dstrip"><div class="dstrip-inner" id="dstrip"></div></div>
+    <div class="clist scr" id="clist" style="padding-top:10px"></div>
+    <div class="tbar">
+      <div class="ti act" id="tab-hm" onclick="switchTab('hm')">
+        <div class="ti-icon"><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M2 7.5L9 2L16 7.5V16H11.5V11H6.5V16H2V7.5Z" stroke="var(--acc)" stroke-width="1.5" stroke-linejoin="round"/></svg></div>
+        <span class="ti-label" style="color:var(--acc)">Home</span>
+      </div>
+      <div class="ti" id="tab-st" onclick="switchTab('st')">
+        <div class="ti-icon"><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="2.5" stroke="var(--t3)" stroke-width="1.5"/><path d="M9 1.5V3M9 15V16.5M1.5 9H3M15 9H16.5M3.2 3.2L4.3 4.3M13.7 13.7L14.8 14.8M3.2 14.8L4.3 13.7M13.7 4.3L14.8 3.2" stroke="var(--t3)" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+        <span class="ti-label">Settings</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════
+       SETTINGS
+  ════════════════════════════════ -->
+  <div class="view" id="vST">
+    <div class="scr" style="padding-top:0">
+      <div class="st-hdr">
+        <div class="st-title">Settings</div>
+        <div class="st-sub">Personalise your experience.</div>
+      </div>
+
+      <!-- Dept & Level -->
+      <div class="st-sec">
+        <p class="sec-label">Department</p>
+        <div class="card-group">
+          <div class="dm-grid" id="st-dg">
+            <div class="dm" data-dept="CEN" onclick="stDept(this)"><div class="dm-code">CEN</div><div class="dm-name">Computer Eng.</div></div>
+            <div class="dm" data-dept="EEN" onclick="stDept(this)"><div class="dm-code">EEN</div><div class="dm-name">Electrical Eng.</div></div>
+            <div class="dm" data-dept="CIV" onclick="stDept(this)"><div class="dm-code">CIV</div><div class="dm-name">Civil Eng.</div></div>
+            <div class="dm" data-dept="MEF" onclick="stDept(this)"><div class="dm-code">MEF</div><div class="dm-name">Mechanical Eng.</div></div>
+            <div class="dm" data-dept="CPE" onclick="stDept(this)" style="grid-column:span 2"><div class="dm-code">CPE</div><div class="dm-name">Chemical &amp; Petroleum Eng.</div></div>
+          </div>
+        </div>
+
+        <p class="sec-label" style="margin-top:14px">Level</p>
+        <div class="card-group" style="padding-top:12px">
+          <div class="lv-row" id="st-lr">
+            <div class="lm" data-level="200" onclick="stLevel(this)"><span>200</span></div>
+            <div class="lm" data-level="300" onclick="stLevel(this)"><span>300</span></div>
+            <div class="lm" data-level="400" onclick="stLevel(this)"><span>400</span></div>
+            <div class="lm" data-level="500" onclick="stLevel(this)"><span>500</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Display -->
+      <div class="st-sec">
+        <p class="sec-label">Display</p>
+        <div class="card-group">
+          <div class="row">
+            <div class="row-l"><span class="rl">Dark mode</span><span class="rs">Easy on the eyes</span></div>
+            <div class="tog on" id="thTog" onclick="toggleTheme()"><div class="tog-k"></div></div>
+          </div>
+          <div class="row">
+            <div class="row-l"><span class="rl">Time format</span></div>
+            <div class="seg">
+              <div class="sgo on" id="seg24" onclick="setTF('24')">24h</div>
+              <div class="sgo" id="seg12" onclick="setTF('12')">12h</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Notifications -->
+      <div class="st-sec">
+        <p class="sec-label">Notifications</p>
+        <div class="notif-panel">
+          <div class="notif-header">
+            <div class="row-l">
+              <span class="notif-title">Class reminders</span>
+              <span class="rs">Get notified before each class</span>
+            </div>
+            <div class="tog on" id="notifTog" onclick="toggleNotif()"><div class="tog-k"></div></div>
+          </div>
+          <div id="notifOpts">
+            <div class="ropt-label" style="padding:12px 14px 4px;display:block">Remind me before class:</div>
+            <div class="reminder-opts">
+              <div class="ropt" data-min="5" onclick="setReminder(this)">5 min</div>
+              <div class="ropt sel" data-min="10" onclick="setReminder(this)">10 min</div>
+              <div class="ropt" data-min="15" onclick="setReminder(this)">15 min</div>
+              <div class="ropt" data-min="30" onclick="setReminder(this)">30 min</div>
+              <div class="ropt" data-min="60" onclick="setReminder(this)">1 hour</div>
+            </div>
+            <div style="padding:0 14px 12px">
+              <div style="background:var(--gD);border:1px solid rgba(76,187,127,.2);border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:8px">
+                <span style="font-size:16px">🔔</span>
+                <div>
+                  <div style="font-size:12px;font-weight:500;color:var(--green)">Notifications active</div>
+                  <div style="font-size:10px;color:var(--t2);margin-top:1px" id="notifSummary">Reminding 10 min before each class</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI Upload -->
+      <div class="st-sec">
+        <p class="sec-label">AI Timetable Import</p>
+        <div class="upload-panel">
+          <div class="up-header">
+            <div class="up-icon">
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                <path d="M9 1L14 6H10.5V12H7.5V6H4L9 1Z" fill="var(--purple)" opacity=".8"/>
+                <path d="M2 13V15.5C2 16.3 2.7 17 3.5 17H14.5C15.3 17 16 16.3 16 15.5V13" stroke="var(--purple)" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <div>
+              <div class="up-title">Upload new timetable</div>
+              <div class="up-sub">AI parses any PDF or Excel — no hardcoding</div>
+            </div>
+          </div>
+
+          <!-- Drop zone -->
+          <div class="dropzone" id="dz" ondragover="dzDrag(event,true)" ondragleave="dzDrag(event,false)" ondrop="dzDrop(event)" onclick="document.getElementById('fInput').click()">
+            <input type="file" id="fInput" accept=".pdf,.xlsx,.xls,.csv" style="position:absolute;inset:0;opacity:0;cursor:pointer" onchange="handleFile(this)"/>
+            <div class="dz-icon">📄</div>
+            <div class="dz-title">Drop your timetable here</div>
+            <div class="dz-sub">or tap to browse files</div>
+            <div class="dz-types">
+              <span class="dz-type">PDF</span>
+              <span class="dz-type">XLSX</span>
+              <span class="dz-type">XLS</span>
+              <span class="dz-type">CSV</span>
+            </div>
+          </div>
+
+          <!-- Processing steps -->
+          <div class="up-states" id="upStates">
+            <div class="prog-wrap"><div class="prog-bar" id="progBar"></div></div>
+            <div class="up-step" id="step1">
+              <div class="up-step-icon wait" id="s1i">📎</div>
+              <span class="up-step-text" id="s1t">Reading file…</span>
+            </div>
+            <div class="up-step" id="step2">
+              <div class="up-step-icon wait" id="s2i">🤖</div>
+              <span class="up-step-text" id="s2t">Sending to Claude AI…</span>
+            </div>
+            <div class="up-step" id="step3">
+              <div class="up-step-icon wait" id="s3i">📋</div>
+              <span class="up-step-text" id="s3t">Parsing course data…</span>
+            </div>
+            <div class="up-step" id="step4">
+              <div class="up-step-icon wait" id="s4i">✅</div>
+              <span class="up-step-text" id="s4t">Ready to apply</span>
+            </div>
+          </div>
+
+          <!-- Result preview -->
+          <div class="up-result" id="upResult">
+            <div class="up-result-header">
+              <span class="ur-title">Courses found</span>
+              <span class="ur-count" id="urCount">0 courses</span>
+            </div>
+            <div class="up-result-preview" id="urPreview"></div>
+          </div>
+
+          <button class="apply-btn hide" id="applyBtn" onclick="applyImport()">
+            ✦ Apply to my timetable
+          </button>
+        </div>
+      </div>
+
+      <!-- About -->
+      <div class="st-sec">
+        <p class="sec-label">About</p>
+        <div class="card-group">
+          <div class="row"><div class="row-l"><span class="rl">Semester</span></div><span class="rv">2nd Sem 2025/2026</span></div>
+          <div class="row"><div class="row-l"><span class="rl">Faculty</span></div><span class="rv">FET · UB</span></div>
+          <div class="row"><div class="row-l"><span class="rl">Total courses loaded</span></div><span class="rv" id="totalC">—</span></div>
+          <div class="row"><div class="row-l"><span class="rl">Source</span></div><span class="rv" id="dataSource">Built-in</span></div>
+        </div>
+      </div>
+
+      <button class="save-btn" onclick="saveSettings()" style="margin-bottom:8px">Apply changes ✓</button>
+      <p style="text-align:center;font-size:10px;color:var(--t3);margin-bottom:24px">Changes reflect immediately on Home tab</p>
+    </div>
+
+    <div class="tbar">
+      <div class="ti" id="tab2-hm" onclick="switchTab('hm')">
+        <div class="ti-icon"><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M2 7.5L9 2L16 7.5V16H11.5V11H6.5V16H2V7.5Z" stroke="var(--t3)" stroke-width="1.5" stroke-linejoin="round"/></svg></div>
+        <span class="ti-label">Home</span>
+      </div>
+      <div class="ti act" id="tab2-st" onclick="switchTab('st')">
+        <div class="ti-icon"><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="2.5" stroke="var(--acc)" stroke-width="1.5"/><path d="M9 1.5V3M9 15V16.5M1.5 9H3M15 9H16.5M3.2 3.2L4.3 4.3M13.7 13.7L14.8 14.8M3.2 14.8L4.3 13.7M13.7 4.3L14.8 3.2" stroke="var(--acc)" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+        <span class="ti-label" style="color:var(--acc)">Settings</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+// ════════════════════════════════════════════
+// DATA
+// ════════════════════════════════════════════
+let COURSES = [
+  {code:"CEF238",name:"C/C++ Programming",day:"MON",time:"09:00-11:00",hall:"FET-BGFL",lecturer:"Dr. Nguti",dept:"CEN",level:200},
+  {code:"CEF238",name:"C/C++ Programming",day:"MON",time:"11:00-13:00",hall:"FET-BGFL",lecturer:"Dr. Nguti",dept:"CEN",level:200},
+  {code:"EEF368",name:"Microcontrollers & Microprocessors",day:"MON",time:"09:00-11:00",hall:"EE Laboratory",lecturer:"Prof. Tsafack / Dr. Tabetah",dept:"EEN",level:300},
+  {code:"EEF368",name:"Microcontrollers & Microprocessors",day:"MON",time:"11:00-13:00",hall:"EE Laboratory",lecturer:"Prof. Tsafack / Dr. Tabetah",dept:"EEN",level:300},
+  {code:"CIV408",name:"Geotechnics Lab I",day:"MON",time:"09:00-11:00",hall:"PG-LR5",lecturer:"Lontsi A / Njike / Kila",dept:"CIV",level:400},
+  {code:"EEF460",name:"Feedback Systems Laboratory",day:"MON",time:"13:00-15:00",hall:"EE Laboratory",lecturer:"Dr. Wirnkar / Dr. Musong",dept:"EEN",level:400},
+  {code:"CEF444",name:"AI & Machine Learning",day:"TUE",time:"07:00-09:00",hall:"FET-BFF-HALL2",lecturer:"Prof. Fute / Dr. Sop",dept:"CEN",level:400},
+  {code:"CEF342",name:"Database and Design",day:"TUE",time:"07:00-09:00",hall:"FET-TECH3",lecturer:"Eng. Kingue Patrick",dept:"CEN",level:300},
+  {code:"CEF364",name:"Local Area Computer Network",day:"TUE",time:"07:00-09:00",hall:"FET-TECH4",lecturer:"Mr. Glen Forcha",dept:"CEN",level:300},
+  {code:"EEF262",name:"Physics for Engineering II",day:"TUE",time:"07:00-09:00",hall:"FET-BGFL",lecturer:"Dr. Job / Dr. Tabetah",dept:"EEN",level:200},
+  {code:"EEF364",name:"Basic Telecommunications",day:"TUE",time:"07:00-09:00",hall:"FET-TECH4",lecturer:"Dr. Nkemeni / Mr. Forcha Glen",dept:"EEN",level:300},
+  {code:"MEF204",name:"Basics of Mechanical Drawing",day:"TUE",time:"07:00-09:00",hall:"FET-BFF-HALL1",lecturer:"Dr. Temgoua / Dr. Aquigeh",dept:"MEF",level:200},
+  {code:"CIV214",name:"Chemistry II",day:"TUE",time:"07:00-09:00",hall:"FET-TECH1",lecturer:"Tchetgnia Ngassam Ines",dept:"CIV",level:200},
+  {code:"CIV310",name:"Thermodynamics",day:"TUE",time:"07:00-09:00",hall:"PG-LR5",lecturer:"Dr. Lontsi Agostiny",dept:"CIV",level:300},
+  {code:"CPE208",name:"Chemical Process Principle",day:"TUE",time:"07:00-09:00",hall:"FET-TECH2",lecturer:"Dr Teiseh",dept:"CPE",level:200},
+  {code:"CEF472",name:"Human Computer Interface",day:"TUE",time:"09:00-11:00",hall:"FET-TECH1",lecturer:"Dr Djouela Inès",dept:"CEN",level:400},
+  {code:"CEF254",name:"Algebra",day:"TUE",time:"11:00-13:00",hall:"FET-BGFL",lecturer:"Dr Dor C.",dept:"CEN",level:200},
+  {code:"CEF462",name:"Digital Image Processing",day:"TUE",time:"11:00-13:00",hall:"FET-TECH1",lecturer:"Dr Sop Deffo",dept:"CEN",level:400},
+  {code:"CEF356",name:"Mobile Communications & Protocols",day:"TUE",time:"11:00-13:00",hall:"FET-BFF-HALL1",lecturer:"Dr. Nkemeni",dept:"CEN",level:300},
+  {code:"EEF464",name:"Wireless & Mobile Communications",day:"TUE",time:"11:00-13:00",hall:"FET-BFF-HALL2",lecturer:"Dr. Sitamtze Youmbi",dept:"EEN",level:400},
+  {code:"CIV202",name:"Materials Science & Technology",day:"TUE",time:"11:00-13:00",hall:"FET-TECH2",lecturer:"Tchetgnia Ngassam Ines",dept:"CIV",level:200},
+  {code:"CPE304",name:"Reservoir Engineering",day:"TUE",time:"11:00-13:00",hall:"FET-TECH3",lecturer:"Dr. Victor Wotanie / Mr. Ayuk Samuel",dept:"CPE",level:300},
+  {code:"CEF344",name:"Client-Server & Web App Development",day:"TUE",time:"13:00-15:00",hall:"PG-LR5",lecturer:"Dr Sop Deffo",dept:"CEN",level:300},
+  {code:"CEF250",name:"Computer Architecture",day:"TUE",time:"13:00-15:00",hall:"FET-BGFL",lecturer:"Mr. Forcha Glen",dept:"CEN",level:200},
+  {code:"EEF482",name:"Electric Machines II",day:"TUE",time:"13:00-15:00",hall:"FET-BFF-HALL2",lecturer:"Fotso Mbobda Christophe",dept:"EEN",level:400},
+  {code:"CIV404",name:"Fluid Mechanics & Hydraulic Constructions",day:"TUE",time:"13:00-15:00",hall:"FET-TECH4",lecturer:"Lontsi Agostiny Marrios",dept:"CIV",level:400},
+  {code:"MEF240",name:"Introduction to Thermodynamics",day:"TUE",time:"13:00-15:00",hall:"FET-TECH1",lecturer:"Prof. Fopah-Lele / Dr. Temgoua",dept:"MEF",level:200},
+  {code:"MEF414",name:"CNC Machining",day:"TUE",time:"13:00-15:00",hall:"FET-TECH2",lecturer:"Azeufack",dept:"MEF",level:400},
+  {code:"CEF440",name:"Internet & Mobile Programming",day:"TUE",time:"15:00-17:00",hall:"FET-BGFL",lecturer:"Dr Nkemeni V.",dept:"CEN",level:400},
+  {code:"EEF466",name:"Antenna and Propagation",day:"TUE",time:"15:00-17:00",hall:"FET-TECH4",lecturer:"Engr. Baar David",dept:"EEN",level:400},
+  {code:"EEF366",name:"Sequence Control",day:"TUE",time:"15:00-17:00",hall:"FET-TECH1",lecturer:"Dr. Nouadjep / Dr. Musong",dept:"EEN",level:300},
+  {code:"MEF480",name:"Basics of Automobile Mechanics",day:"TUE",time:"15:00-17:00",hall:"FET-BFF-HALL1",lecturer:"Aquigeh",dept:"MEF",level:400},
+  {code:"MEF354",name:"Thermodynamics",day:"TUE",time:"15:00-17:00",hall:"FET-TECH2",lecturer:"Temgoua Djouatsa Diane",dept:"MEF",level:300},
+  {code:"CIV422",name:"Structural Analysis II",day:"TUE",time:"15:00-17:00",hall:"PG-LR5",lecturer:"Njike M. & Kila S.",dept:"CIV",level:400},
+  {code:"CEF438",name:"Advanced Databases & Administration",day:"WED",time:"07:00-09:00",hall:"FET-BFF-HALL2",lecturer:"Dr Kamdjou",dept:"CEN",level:400},
+  {code:"CEF432",name:"Network Security Fundamentals",day:"WED",time:"07:00-09:00",hall:"FET-TECH3",lecturer:"Dr Tsague A.",dept:"CEN",level:400},
+  {code:"EEF262",name:"Physics for Engineering II",day:"WED",time:"07:00-09:00",hall:"FET-BGFL",lecturer:"Dr. Djob / Dr. Tabetah",dept:"EEN",level:200},
+  {code:"CIV346",name:"Soil Mechanics",day:"WED",time:"07:00-09:00",hall:"FET-TECH1",lecturer:"Dr. Lontsi A. / Dr. Feumoe A.",dept:"CIV",level:300},
+  {code:"CIV426",name:"Structural Design",day:"WED",time:"07:00-09:00",hall:"FET-BFF-HALL1",lecturer:"Njike Manette",dept:"CIV",level:400},
+  {code:"MEF490",name:"Engineering Economy",day:"WED",time:"07:00-09:00",hall:"FET-TECH2",lecturer:"Dr. Seppo",dept:"MEF",level:400},
+  {code:"CEF468",name:"Database & PHP Programming",day:"WED",time:"09:00-11:00",hall:"FET-BFF-HALL1",lecturer:"Eng. Djotchuang / Forcha Glen",dept:"CEN",level:400},
+  {code:"CEF476",name:"Software Engineering & Design",day:"WED",time:"09:00-11:00",hall:"FET-TECH3",lecturer:"Dr Kamdjou / Dr Tsague",dept:"CEN",level:400},
+  {code:"EEF262",name:"Physics for Engineering II",day:"WED",time:"09:00-11:00",hall:"FET-BGFL",lecturer:"Dr. Djob / Dr. Tabetah",dept:"EEN",level:200},
+  {code:"CEF478",name:"Network Administration",day:"WED",time:"11:00-13:00",hall:"FET-TECH1",lecturer:"Mr. Forcha Glen",dept:"CEN",level:400},
+  {code:"EEF262",name:"Physics for Engineering II",day:"WED",time:"11:00-13:00",hall:"FET-BGFL",lecturer:"Dr. Djob / Dr. Tabetah",dept:"EEN",level:200},
+  {code:"CIV348",name:"Road and Various Networks",day:"WED",time:"11:00-13:00",hall:"PG-LR5",lecturer:"Dr. Meh A.",dept:"CIV",level:300},
+  {code:"CIV502",name:"Reinforced Concrete 2",day:"WED",time:"11:00-13:00",hall:"FET-TECH4",lecturer:"Njike Manette / Kang Cedric",dept:"CIV",level:500},
+  {code:"EEF262",name:"Physics for Engineering II",day:"WED",time:"15:00-17:00",hall:"FET-BGFL",lecturer:"Dr. Djob / Dr. Tabetah",dept:"EEN",level:200},
+  {code:"EEF484",name:"Electrical Power Systems II",day:"THU",time:"07:00-09:00",hall:"FET-TECH1",lecturer:"Fotso Mbobda / Ayuketah",dept:"EEN",level:400},
+  {code:"CIV410",name:"Fundamentals of BIM",day:"THU",time:"07:00-09:00",hall:"FET-BFF-HALL1",lecturer:"Mr. Kang Cederic / Chia",dept:"CIV",level:400},
+  {code:"MEF416",name:"Basics of Industrial Automation",day:"THU",time:"07:00-09:00",hall:"FET-TECH2",lecturer:"TBA",dept:"MEF",level:400},
+  {code:"MEF450",name:"Hydraulics and Pneumatics",day:"THU",time:"07:00-09:00",hall:"PG-LR5",lecturer:"Ejuh Che",dept:"MEF",level:400},
+  {code:"EEF260",name:"Analog Electronics I",day:"THU",time:"07:00-09:00",hall:"FET-TECH4",lecturer:"Dr. Tabeta Marshall",dept:"EEN",level:200},
+  {code:"CEF346",name:"Object Oriented Programming",day:"THU",time:"09:00-11:00",hall:"PG-LR5",lecturer:"Dr Djouela",dept:"CEN",level:300},
+  {code:"CEF350",name:"Security and Cryptosystem",day:"THU",time:"09:00-11:00",hall:"FET-TECH1",lecturer:"Dr Tsague A.",dept:"CEN",level:300},
+  {code:"EEF474",name:"Coding Theory",day:"THU",time:"09:00-11:00",hall:"FET-TECH2",lecturer:"Mr. Ajua Columbus",dept:"EEN",level:400},
+  {code:"CIV234",name:"Introduction to Architecture",day:"THU",time:"09:00-11:00",hall:"FET-BFF-HALL1",lecturer:"Mackongo Jean Christian",dept:"CIV",level:200},
+  {code:"MEF366",name:"Heat Transfer",day:"THU",time:"09:00-11:00",hall:"FET-TECH3",lecturer:"Dr. Temgoua / Prof. Fopah-Lele",dept:"MEF",level:300},
+  {code:"CEF450",name:"Cloud Computing & SOA",day:"THU",time:"11:00-13:00",hall:"PG-LR5",lecturer:"Dr Djouela Inès",dept:"CEN",level:400},
+  {code:"CEF352",name:"Tools & Numerical Methods",day:"THU",time:"11:00-13:00",hall:"FET-TECH2",lecturer:"Dr Wati / Dr Azeufack",dept:"CEN",level:300},
+  {code:"EEF490",name:"Hybrid Energy Components & Systems",day:"THU",time:"11:00-13:00",hall:"FET-BFF-HALL1",lecturer:"Prof. Fopah / Dr. Wati",dept:"EEN",level:400},
+  {code:"EEF268",name:"Digital Electronics II",day:"THU",time:"11:00-13:00",hall:"FET-BGFL",lecturer:"Wirnkar Basil / Ayuketah Yvan",dept:"EEN",level:200},
+  {code:"CEF488",name:"System & Network Programming",day:"THU",time:"13:00-15:00",hall:"PG-LR5",lecturer:"Mr Forcha Glen",dept:"CEN",level:400},
+  {code:"CEF482",name:"XML & Document Content Description",day:"THU",time:"13:00-15:00",hall:"FET-BFF-HALL1",lecturer:"Dr Sop",dept:"CEN",level:400},
+  {code:"CEF354",name:"Switching & Routing Protocols",day:"THU",time:"15:00-17:00",hall:"PG-LR5",lecturer:"Dr Nkemeni V. / Dr Nguti",dept:"CEN",level:300},
+  {code:"EEF360",name:"Systems Simulation & PCB Design",day:"THU",time:"15:00-17:00",hall:"FET-BGFL",lecturer:"Prof. Ngwashi / Dr. Tabetah",dept:"EEN",level:300},
+  {code:"CEF444",name:"AI & Machine Learning",day:"FRI",time:"07:00-09:00",hall:"FET-BGFL",lecturer:"Prof. Fute / Dr. Sop",dept:"CEN",level:400},
+  {code:"CEF342",name:"Database and Design",day:"FRI",time:"07:00-09:00",hall:"FET-TECH3",lecturer:"Eng. Kingue Patrick",dept:"CEN",level:300},
+  {code:"EEF364",name:"Basic Telecommunications",day:"FRI",time:"07:00-09:00",hall:"FET-TECH4",lecturer:"Dr. Nkemeni / Mr. Forcha Glen",dept:"EEN",level:300},
+  {code:"MEF204",name:"Basics of Mechanical Drawing",day:"FRI",time:"07:00-09:00",hall:"FET-BFF-HALL1",lecturer:"Dr. Temgoua / Dr. Aquigeh",dept:"MEF",level:200},
+  {code:"CIV214",name:"Chemistry II",day:"FRI",time:"07:00-09:00",hall:"FET-TECH1",lecturer:"Tchetgnia Ngassam Ines",dept:"CIV",level:200},
+  {code:"CIV310",name:"Thermodynamics",day:"FRI",time:"07:00-09:00",hall:"PG-LR5",lecturer:"Dr. Lontsi Agostiny",dept:"CIV",level:300},
+  {code:"CPE208",name:"Chemical Process Principle",day:"FRI",time:"07:00-09:00",hall:"FET-TECH2",lecturer:"Dr Teiseh",dept:"CPE",level:200},
+  {code:"CEF472",name:"Human Computer Interface",day:"FRI",time:"09:00-11:00",hall:"FET-TECH1",lecturer:"Dr Djouela Inès",dept:"CEN",level:400},
+  {code:"CEF364",name:"Local Area Computer Network",day:"FRI",time:"09:00-11:00",hall:"FET-TECH2",lecturer:"Mr. Glen Forcha",dept:"CEN",level:300},
+  {code:"EEF462",name:"Digital Signal Processing",day:"FRI",time:"09:00-11:00",hall:"FET-TECH3",lecturer:"Sitamtze Youmbi Bertrand",dept:"EEN",level:400},
+  {code:"EEF480",name:"Control of Electrical Machines",day:"FRI",time:"09:00-11:00",hall:"FET-TECH4",lecturer:"Dr. Fotso",dept:"EEN",level:400},
+  {code:"CIV402",name:"Reinforced Concrete I",day:"FRI",time:"09:00-11:00",hall:"FET-BGFL",lecturer:"Chia E",dept:"CIV",level:400},
+  {code:"CIV344",name:"Solid Mechanics",day:"FRI",time:"09:00-11:00",hall:"PG-LR5",lecturer:"Dr. Feumoe Narcisse",dept:"CIV",level:300},
+  {code:"CPE302",name:"Health Safety and Environment",day:"FRI",time:"09:00-11:00",hall:"FET-BFF-HALL1",lecturer:"Dr. Boukanda",dept:"CPE",level:300},
+  {code:"CEF254",name:"Algebra",day:"FRI",time:"11:00-13:00",hall:"FET-BGFL",lecturer:"Dr Dor C.",dept:"CEN",level:200},
+  {code:"CEF364",name:"Local Area Computer Network",day:"FRI",time:"11:00-13:00",hall:"FET-TECH1",lecturer:"Mr. Glen Forcha",dept:"CEN",level:300},
+  {code:"CEF462",name:"Digital Image Processing",day:"FRI",time:"11:00-13:00",hall:"FET-BFF-HALL1",lecturer:"Dr Sop Deffo",dept:"CEN",level:400},
+  {code:"EEF464",name:"Wireless & Mobile Communications",day:"FRI",time:"11:00-13:00",hall:"FET-BFF-HALL2",lecturer:"Dr. Sitamtze Youmbi",dept:"EEN",level:400},
+  {code:"CIV202",name:"Materials Science & Technology",day:"FRI",time:"11:00-13:00",hall:"FET-TECH2",lecturer:"Tchetgnia Ngassam Ines",dept:"CIV",level:200},
+  {code:"CPE304",name:"Reservoir Engineering",day:"FRI",time:"11:00-13:00",hall:"FET-TECH3",lecturer:"Dr. Victor Wotanie / Mr. Ayuk Samuel",dept:"CPE",level:300},
+  {code:"CEF344",name:"Client-Server & Web App Development",day:"FRI",time:"13:00-15:00",hall:"PG-LR5",lecturer:"Dr Sop Deffo",dept:"CEN",level:300},
+  {code:"CEF250",name:"Computer Architecture",day:"FRI",time:"13:00-15:00",hall:"FET-BGFL",lecturer:"Mr. Forcha Glen",dept:"CEN",level:200},
+  {code:"EEF482",name:"Electric Machines II",day:"FRI",time:"13:00-15:00",hall:"FET-BFF-HALL2",lecturer:"Fotso Mbobda Christophe",dept:"EEN",level:400},
+  {code:"CIV404",name:"Fluid Mechanics & Hydraulic Constructions",day:"FRI",time:"13:00-15:00",hall:"FET-TECH3",lecturer:"Lontsi Agostiny Marrios",dept:"CIV",level:400},
+  {code:"MEF240",name:"Introduction to Thermodynamics",day:"FRI",time:"13:00-15:00",hall:"FET-TECH2",lecturer:"Prof. Fopah-Lele / Dr. Temgoua",dept:"MEF",level:200},
+  {code:"CEF356",name:"Mobile Communications & Protocols",day:"FRI",time:"15:00-17:00",hall:"FET-BGFL",lecturer:"Dr Nkemeni V.",dept:"CEN",level:300},
+  {code:"EEF466",name:"Antenna and Propagation",day:"FRI",time:"15:00-17:00",hall:"FET-TECH4",lecturer:"Engr. Baar David",dept:"EEN",level:400},
+  {code:"EEF366",name:"Sequence Control",day:"FRI",time:"15:00-17:00",hall:"FET-TECH1",lecturer:"Dr. Nouadjep / Dr. Musong",dept:"EEN",level:300},
+  {code:"MEF354",name:"Thermodynamics",day:"FRI",time:"15:00-17:00",hall:"FET-TECH2",lecturer:"Temgoua Djouatsa Diane",dept:"MEF",level:300},
+  {code:"CIV422",name:"Structural Analysis II",day:"FRI",time:"15:00-17:00",hall:"PG-LR5",lecturer:"Njike M. & Kila S.",dept:"CIV",level:400},
+  {code:"CIV210",name:"Fluid Mechanics",day:"FRI",time:"15:00-17:00",hall:"FET-BGFL",lecturer:"Dr. Lontsi / Dr. Mwebi",dept:"CIV",level:200},
+  {code:"EEF484",name:"Electrical Power Systems II",day:"SAT",time:"07:00-09:00",hall:"FET-TECH1",lecturer:"Fotso Mbobda / Ayuketah",dept:"EEN",level:400},
+  {code:"MEF202",name:"Materials Science and Technology",day:"SAT",time:"07:00-09:00",hall:"FET-BGFL",lecturer:"Dr. Awa",dept:"MEF",level:200},
+  {code:"CIV410",name:"Fundamentals of BIM",day:"SAT",time:"07:00-09:00",hall:"FET-BFF-HALL1",lecturer:"Mr. Kang Cederic / Chia",dept:"CIV",level:400},
+  {code:"EEF260",name:"Analog Electronics I",day:"SAT",time:"07:00-09:00",hall:"FET-TECH4",lecturer:"Dr. Tabeta Marshall",dept:"EEN",level:200},
+  {code:"CEF346",name:"Object Oriented Programming",day:"SAT",time:"09:00-11:00",hall:"PG-LR5",lecturer:"Dr Djouela",dept:"CEN",level:300},
+  {code:"CEF350",name:"Security and Cryptosystem",day:"SAT",time:"09:00-11:00",hall:"FET-TECH1",lecturer:"Dr Tsague A.",dept:"CEN",level:300},
+  {code:"EEF474",name:"Coding Theory",day:"SAT",time:"09:00-11:00",hall:"FET-TECH2",lecturer:"Mr. Ajua Columbus",dept:"EEN",level:400},
+  {code:"CIV222",name:"General Algebra & Affine Geometry",day:"SAT",time:"09:00-11:00",hall:"FET-BFF-HALL1",lecturer:"Agbor D. / Feumoe Narcisse",dept:"CIV",level:200},
+  {code:"CIV334",name:"Strength of Materials",day:"SAT",time:"09:00-11:00",hall:"FET-TECH4",lecturer:"Njike Manette / Kila",dept:"CIV",level:300},
+  {code:"MEF366",name:"Heat Transfer",day:"SAT",time:"09:00-11:00",hall:"FET-TECH3",lecturer:"Dr. Temgoua / Prof. Fopah-Lele",dept:"MEF",level:300},
+  {code:"CEF450",name:"Cloud Computing & SOA",day:"SAT",time:"11:00-13:00",hall:"PG-LR5",lecturer:"Dr Djouela Inès",dept:"CEN",level:400},
+  {code:"CEF352",name:"Tools & Numerical Methods",day:"SAT",time:"11:00-13:00",hall:"FET-TECH2",lecturer:"Dr Wati / Dr Azeufack",dept:"CEN",level:300},
+  {code:"EEF490",name:"Hybrid Energy Components & Systems",day:"SAT",time:"11:00-13:00",hall:"FET-BFF-HALL1",lecturer:"Prof. Fopah / Dr. Wati",dept:"EEN",level:400},
+  {code:"EEF268",name:"Digital Electronics II",day:"SAT",time:"11:00-13:00",hall:"FET-BGFL",lecturer:"Wirnkar Basil / Ayuketah Yvan",dept:"EEN",level:200},
+  {code:"MEF460",name:"Design Graphics for Mech. Eng.",day:"SAT",time:"11:00-13:00",hall:"FET-TECH1",lecturer:"Dr. Aquigeh Newen",dept:"MEF",level:400},
+  {code:"MEF268",name:"Electrical Eng. for Mech. Engineers",day:"SAT",time:"11:00-13:00",hall:"FET-TECH3",lecturer:"Simo Domguia Ulrich",dept:"MEF",level:200},
+  {code:"CEF482",name:"XML & Document Content Description",day:"SAT",time:"13:00-15:00",hall:"FET-BFF-HALL1",lecturer:"Dr Sop",dept:"CEN",level:400},
+  {code:"CEF488",name:"System & Network Programming",day:"SAT",time:"13:00-15:00",hall:"PG-LR5",lecturer:"Mr Forcha Glen",dept:"CEN",level:400},
+  {code:"MEF368",name:"Design & Operation of Chemical Apparatus",day:"SAT",time:"13:00-15:00",hall:"FET-TECH1",lecturer:"Nouadjep Serge",dept:"MEF",level:300},
+  {code:"MEF464",name:"Heating, Ventilation & Air Conditioning",day:"SAT",time:"13:00-15:00",hall:"FET-TECH3",lecturer:"Dr. Aquigeh Newen",dept:"MEF",level:400},
+  {code:"CIV416",name:"Introduction to Urbanism & Transport",day:"SAT",time:"13:00-15:00",hall:"FET-BGFL",lecturer:"Tata Sunjo / Meh",dept:"CIV",level:400},
+  {code:"CIV340",name:"Technical Writing",day:"SAT",time:"13:00-15:00",hall:"FET-TECH2",lecturer:"Prof. Tata S / Dr. Mwebi",dept:"CIV",level:300},
+  {code:"EEF264",name:"Control Engineering Instrumentation",day:"SAT",time:"15:00-17:00",hall:"FET-TECH1",lecturer:"Dr. Nouadjep",dept:"EEN",level:200},
+  {code:"CEF354",name:"Switching & Routing Protocols",day:"SAT",time:"15:00-17:00",hall:"FET-BGFL",lecturer:"Dr Nkemeni V. / Dr Nguti",dept:"CEN",level:300},
+  {code:"CIV228",name:"Programming & Application Software",day:"SAT",time:"15:00-17:00",hall:"FET-TECH2",lecturer:"Dr. Nouadjep Serge",dept:"CIV",level:200},
+  {code:"CIV342",name:"Architectural Drawing",day:"SAT",time:"15:00-17:00",hall:"FET-BFF-HALL1",lecturer:"Goodwill N",dept:"CIV",level:300},
+  {code:"MEF370",name:"Process Technology & Design",day:"SAT",time:"15:00-17:00",hall:"PG-LR5",lecturer:"Dr. Tsamo Nestor",dept:"MEF",level:300},
+  {code:"CEF474",name:"Software Verification & Validation",day:"SAT",time:"17:00-19:00",hall:"FET-BFF-HALL1",lecturer:"Dr Tsague A.",dept:"CEN",level:400},
+  {code:"CEF458",name:"Enterprise IP, Telephony & Video Network",day:"SAT",time:"17:00-19:00",hall:"PG-LR5",lecturer:"Dr. Kamdjou",dept:"CEN",level:400},
+  {code:"CIV418",name:"Quality, Safety & Environmental Mgmt",day:"SAT",time:"17:00-19:00",hall:"FET-BGFL",lecturer:"Ngassam Ines / Mwebi",dept:"CIV",level:400},
+  {code:"MEF470",name:"Embedded Application Design & Interfacing",day:"SAT",time:"17:00-19:00",hall:"FET-TECH2",lecturer:"Ejuh Che",dept:"MEF",level:400},
+];
+
+const DAYS=['MON','TUE','WED','THU','FRI','SAT'];
+const DFULL={MON:'Monday',TUE:'Tuesday',WED:'Wednesday',THU:'Thursday',FRI:'Friday',SAT:'Saturday'};
+
+// ════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════
+let S={
+  dept:null,level:null,theme:'dark',tf:'24',
+  activeDay:DAYS[Math.min(Math.max(new Date().getDay()-1,0),5)],
+  notifOn:true,reminder:10,
+  notifSet:new Set(),       // course keys with bell on
+  importedCourses:null,     // staging area before apply
+};
+
+// ════════════════════════════════════════════
+// UTILS
+// ════════════════════════════════════════════
+function fmt(t){
+  if(S.tf==='24') return t;
+  const[h,m]=t.split(':').map(Number);
+  return`${h%12||12}:${String(m).padStart(2,'0')} ${h>=12?'PM':'AM'}`;
+}
+function fmtR(r){const[a,b]=r.split('-');return`${fmt(a)} – ${fmt(b)}`;}
+function greet(){const h=new Date().getHours();return h<12?'Good morning':h<17?'Good afternoon':'Good evening';}
+function toast(msg,color){
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  if(color) t.style.color=`var(--${color})`;
+  t.classList.add('on');
+  setTimeout(()=>{t.classList.remove('on');t.style.color='';},2400);
+}
+function courseKey(c){return`${c.code}-${c.day}-${c.time}`;}
+
+// ════════════════════════════════════════════
+// VIEW SWITCHING
+// ════════════════════════════════════════════
+function showView(id){
+  ['vOB','vHM','vST'].forEach(v=>{
+    const el=document.getElementById(v);
+    el.classList.toggle('on',v===id);
+  });
+}
+function switchTab(tab){
+  if(tab==='hm'){
+    showView('vHM');
+    initHome();
+    ['tab-hm','tab2-hm'].forEach(id=>{
+      const el=document.getElementById(id);
+      if(el) el.classList.add('act');
+    });
+    ['tab-st','tab2-st'].forEach(id=>{
+      const el=document.getElementById(id);
+      if(el) el.classList.remove('act');
+    });
+  } else {
+    showView('vST');
+    syncSettings();
+    ['tab2-st','tab-st'].forEach(id=>{
+      const el=document.getElementById(id);
+      if(el) el.classList.add('act');
+    });
+    ['tab2-hm','tab-hm'].forEach(id=>{
+      const el=document.getElementById(id);
+      if(el) el.classList.remove('act');
+    });
+  }
+}
+
+// ════════════════════════════════════════════
+// ONBOARDING
+// ════════════════════════════════════════════
+function obDept(el){
+  document.querySelectorAll('#ob-dg .dc').forEach(c=>c.classList.remove('sel'));
+  el.classList.add('sel'); S.dept=el.dataset.dept;
+}
+function obLevel(el){
+  document.querySelectorAll('#ob-lr .lb').forEach(b=>b.classList.remove('sel'));
+  el.classList.add('sel'); S.level=el.dataset.level;
+}
+function obFinish(){
+  if(!S.dept||!S.level){
+    const e=document.getElementById('ob-err');
+    e.classList.add('on');
+    setTimeout(()=>e.classList.remove('on'),3000);
+    return;
+  }
+  initHome();
+  showView('vHM');
+  document.getElementById('totalC').textContent=COURSES.length;
+}
+
+// ════════════════════════════════════════════
+// HOME
+// ════════════════════════════════════════════
+function initHome(){
+  const now=new Date();
+  document.getElementById('stTime').textContent=`${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
+  document.getElementById('hGreet').textContent=greet();
+  document.getElementById('hTitle').innerHTML=`<em>${S.dept}</em> Level ${S.level}`;
+  document.getElementById('hBadge').textContent=`${S.dept} · L${S.level}`;
+
+  // notif badge
+  const nb=document.getElementById('notifBadge');
+  const activeNotifs=S.notifOn?S.notifSet.size:0;
+  nb.style.display=activeNotifs>0?'flex':'none';
+  document.getElementById('notifCount').textContent=`🔔 ${activeNotifs} reminders on`;
+
+  // day strip
+  const activeDays=[...new Set(COURSES.filter(c=>c.dept===S.dept&&c.level==S.level).map(c=>c.day))];
+  if(!activeDays.includes(S.activeDay)&&activeDays.length) S.activeDay=activeDays[0];
+  document.getElementById('dstrip').innerHTML=DAYS.map(d=>{
+    const has=activeDays.includes(d);
+    return`<div class="dchip${d===S.activeDay?' on':''}${has?' has':''}" onclick="selDay('${d}')">${d}</div>`;
+  }).join('');
+
+  renderCourses();
+}
+
+function selDay(d){
+  S.activeDay=d;
+  document.querySelectorAll('.dchip').forEach(c=>c.classList.toggle('on',c.textContent===d));
+  renderCourses();
+}
+
+function renderCourses(){
+  const list=document.getElementById('clist');
+  const courses=COURSES.filter(c=>c.dept===S.dept&&c.level==S.level&&c.day===S.activeDay);
+  if(!courses.length){
+    list.innerHTML=`<div class="empty"><div class="empty-i">📭</div><div class="empty-t">No classes on ${DFULL[S.activeDay]}</div></div>`;
+    return;
+  }
+  const grouped={};
+  courses.forEach(c=>{if(!grouped[c.time])grouped[c.time]=[];grouped[c.time].push(c);});
+  const sorted=Object.entries(grouped).sort((a,b)=>a[0].localeCompare(b[0]));
+  list.innerHTML=sorted.map(([time,cs])=>`
+    <div class="tgrp">
+      <div class="t-lbl">${fmtR(time)}</div>
+      ${cs.map(c=>{
+        const key=courseKey(c);
+        const bellOn=S.notifOn&&S.notifSet.has(key);
+        return`<div class="cc${bellOn?' notif-on':''}">
+          <div class="cc-top">
+            <span class="cc-code">${c.code}</span>
+            <div class="cc-right">
+              <span class="cc-hall">${c.hall}</span>
+              <button class="cc-bell${bellOn?' on':''}" onclick="toggleBell('${key}',this)" title="Toggle reminder">
+                <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+                  <path d="M7 1C4.8 1 3 2.8 3 5V8L1.5 9.5V10.5H12.5V9.5L11 8V5C11 2.8 9.2 1 7 1Z" stroke="${bellOn?'var(--green)':'var(--t3)'}" stroke-width="1.3" fill="${bellOn?'var(--gD)':'none'}"/>
+                  <path d="M5.5 11C5.5 11.8 6.2 12.5 7 12.5C7.8 12.5 8.5 11.8 8.5 11" stroke="${bellOn?'var(--green)':'var(--t3)'}" stroke-width="1.3"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div class="cc-name">${c.name}</div>
+          <div class="cc-lect">${c.lecturer}</div>
+        </div>`;
+      }).join('')}
+    </div>`).join('');
+}
+
+function toggleBell(key,btn){
+  if(!S.notifOn){toast('Enable notifications in Settings first','acc');return;}
+  if(S.notifSet.has(key)){
+    S.notifSet.delete(key);
+    toast('Reminder removed');
+  } else {
+    S.notifSet.add(key);
+    toast(`🔔 Reminder set: ${S.reminder} min before`,'green');
+  }
+  // re-render to update bell states
+  renderCourses();
+  // update badge
+  const nb=document.getElementById('notifBadge');
+  nb.style.display=S.notifSet.size>0?'flex':'none';
+  document.getElementById('notifCount').textContent=`🔔 ${S.notifSet.size} reminders on`;
+}
+
+// ════════════════════════════════════════════
+// SETTINGS
+// ════════════════════════════════════════════
+function syncSettings(){
+  document.querySelectorAll('#st-dg .dm').forEach(el=>el.classList.toggle('sel',el.dataset.dept===S.dept));
+  document.querySelectorAll('#st-lr .lm').forEach(el=>el.classList.toggle('sel',el.dataset.level===S.level));
+  const dark=S.theme==='dark';
+  document.getElementById('thTog').classList.toggle('on',dark);
+  document.body.className=S.theme;
+  document.getElementById('seg24').classList.toggle('on',S.tf==='24');
+  document.getElementById('seg12').classList.toggle('on',S.tf==='12');
+  document.getElementById('notifTog').classList.toggle('on',S.notifOn);
+  document.getElementById('notifOpts').style.opacity=S.notifOn?'1':'0.4';
+  document.getElementById('notifOpts').style.pointerEvents=S.notifOn?'all':'none';
+  document.querySelectorAll('.ropt').forEach(r=>r.classList.toggle('sel',parseInt(r.dataset.min)===S.reminder));
+  document.getElementById('notifSummary').textContent=`Reminding ${S.reminder} min before each class`;
+  document.getElementById('totalC').textContent=COURSES.length;
+}
+
+function stDept(el){document.querySelectorAll('#st-dg .dm').forEach(e=>e.classList.remove('sel'));el.classList.add('sel');S.dept=el.dataset.dept;}
+function stLevel(el){document.querySelectorAll('#st-lr .lm').forEach(e=>e.classList.remove('sel'));el.classList.add('sel');S.level=el.dataset.level;}
+function toggleTheme(){S.theme=S.theme==='dark'?'light':'dark';document.body.className=S.theme;document.getElementById('thTog').classList.toggle('on',S.theme==='dark');}
+function setTF(f){S.tf=f;document.getElementById('seg24').classList.toggle('on',f==='24');document.getElementById('seg12').classList.toggle('on',f==='12');}
+function toggleNotif(){
+  S.notifOn=!S.notifOn;
+  document.getElementById('notifTog').classList.toggle('on',S.notifOn);
+  document.getElementById('notifOpts').style.opacity=S.notifOn?'1':'0.4';
+  document.getElementById('notifOpts').style.pointerEvents=S.notifOn?'all':'none';
+  if(!S.notifOn){S.notifSet.clear();toast('Notifications disabled');}
+  else toast('🔔 Notifications enabled','green');
+}
+function setReminder(el){
+  document.querySelectorAll('.ropt').forEach(r=>r.classList.remove('sel'));
+  el.classList.add('sel');
+  S.reminder=parseInt(el.dataset.min);
+  document.getElementById('notifSummary').textContent=`Reminding ${S.reminder} min before each class`;
+}
+function saveSettings(){
+  toast('✓ Settings applied','acc');
+}
+
+// ════════════════════════════════════════════
+// AI UPLOAD FLOW
+// ════════════════════════════════════════════
+let pendingImport=null;
+
+function dzDrag(e,on){e.preventDefault();document.getElementById('dz').classList.toggle('drag',on);}
+function dzDrop(e){e.preventDefault();document.getElementById('dz').classList.remove('drag');const f=e.dataTransfer.files[0];if(f)processFile(f);}
+function handleFile(inp){if(inp.files[0])processFile(inp.files[0]);}
+
+async function processFile(file){
+  const allowed=['application/pdf','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-excel','text/csv'];
+  const ext=file.name.split('.').pop().toLowerCase();
+  if(!['pdf','xlsx','xls','csv'].includes(ext)){toast('Unsupported file type','red');return;}
+
+  // Show processing UI
+  document.getElementById('upStates').classList.add('show');
+  document.getElementById('upResult').classList.remove('show');
+  document.getElementById('applyBtn').classList.add('hide');
+  document.getElementById('dz').style.opacity='0.4';
+  document.getElementById('dz').style.pointerEvents='none';
+  document.getElementById('progBar').style.width='0%';
+
+  const steps=[
+    {id:'s1',icon:'📎',text:`Reading "${file.name}"…`},
+    {id:'s2',icon:'🤖',text:'Sending to Claude AI for analysis…'},
+    {id:'s3',icon:'📋',text:'Parsing course structure…'},
+    {id:'s4',icon:'✅',text:'Done — ready to apply!'},
+  ];
+
+  // Animate through steps
+  for(let i=0;i<steps.length;i++){
+    const s=steps[i];
+    setStep(s.id,'spin',s.text,true);
+    document.getElementById('progBar').style.width=`${(i+1)*25}%`;
+    await delay(700+Math.random()*400);
+    if(i<steps.length-1) setStep(s.id,'done',s.text,false);
+  }
+  setStep('s4','done','Extraction complete',false);
+
+  // Simulate AI-parsed result (in real app this calls the Anthropic API)
+  const parsed=simulateAIParse(file.name,ext);
+  pendingImport=parsed;
+
+  // Show preview
+  const result=document.getElementById('upResult');
+  result.classList.add('show');
+  document.getElementById('urCount').textContent=`${parsed.length} courses`;
+  document.getElementById('urPreview').innerHTML=parsed.slice(0,6).map(c=>`
+    <div class="preview-course">
+      <span class="pc-code">${c.code}</span>
+      <span class="pc-name">${c.name}</span>
+      <span class="pc-day">${c.day}</span>
+    </div>`).join('');
+
+  document.getElementById('applyBtn').classList.remove('hide');
+  document.getElementById('dz').style.opacity='1';
+  document.getElementById('dz').style.pointerEvents='all';
+}
+
+function setStep(id,state,text,active){
+  const icon=document.getElementById(`${id}i`);
+  const txt=document.getElementById(`${id}t`);
+  const row=icon.parentElement;
+  icon.className=`up-step-icon ${state}`;
+  txt.textContent=text;
+  row.classList.toggle('active',active);
+}
+
+function delay(ms){return new Promise(r=>setTimeout(r,ms));}
+
+function simulateAIParse(fname,ext){
+  // In production: read file as base64, send to Claude API with prompt:
+  // "Extract all courses from this timetable. Return ONLY a JSON array with fields:
+  //  code, name, day (MON/TUE/WED/THU/FRI/SAT), time (HH:MM-HH:MM), hall, lecturer, dept, level (number)"
+  // For this demo we return a realistic subset
+  return [
+    {code:"NEW101",name:"Introduction to Engineering",day:"MON",time:"08:00-10:00",hall:"FET-A1",lecturer:"Dr. Sample",dept:"CEN",level:100},
+    {code:"NEW102",name:"Engineering Mathematics I",day:"MON",time:"10:00-12:00",hall:"FET-A2",lecturer:"Prof. Demo",dept:"CEN",level:100},
+    {code:"NEW201",name:"Data Structures & Algorithms",day:"TUE",time:"07:00-09:00",hall:"FET-BGFL",lecturer:"Dr. AI-Parsed",dept:"CEN",level:200},
+    {code:"NEW202",name:"Computer Networks",day:"TUE",time:"09:00-11:00",hall:"FET-TECH1",lecturer:"Eng. Upload",dept:"CEN",level:200},
+    {code:"NEW301",name:"Operating Systems",day:"WED",time:"07:00-09:00",hall:"FET-TECH2",lecturer:"Dr. Extract",dept:"CEN",level:300},
+    {code:"NEW302",name:"Software Engineering",day:"WED",time:"11:00-13:00",hall:"FET-TECH3",lecturer:"Prof. Parse",dept:"CEN",level:300},
+    {code:"NEW401",name:"Machine Learning Applications",day:"THU",time:"09:00-11:00",hall:"FET-BFF-HALL1",lecturer:"Dr. Neural",dept:"CEN",level:400},
+    {code:"NEW402",name:"Distributed Systems",day:"FRI",time:"07:00-09:00",hall:"FET-BGFL",lecturer:"Eng. Cloud",dept:"CEN",level:400},
+  ];
+}
+
+function applyImport(){
+  if(!pendingImport) return;
+  COURSES=[...COURSES,...pendingImport];
+  document.getElementById('totalC').textContent=COURSES.length;
+  document.getElementById('dataSource').textContent='Built-in + Imported';
+  pendingImport=null;
+  document.getElementById('applyBtn').classList.add('hide');
+  document.getElementById('upResult').classList.remove('show');
+  document.getElementById('upStates').classList.remove('show');
+  document.getElementById('progBar').style.width='0%';
+  // Reset steps
+  ['s1','s2','s3','s4'].forEach(id=>{
+    document.getElementById(`${id}i`).className='up-step-icon wait';
+    document.getElementById(`${id}t`).textContent=id==='s1'?'Reading file…':id==='s2'?'Sending to Claude AI…':id==='s3'?'Parsing course data…':'Ready to apply';
+  });
+  toast('✦ Timetable imported successfully!','purple');
+  // Refresh home
+  if(S.dept&&S.level) initHome();
+}
+</script>
+</body>
+</html>
