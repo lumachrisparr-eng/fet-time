@@ -83,11 +83,14 @@ export default function OnboardingScreen() {
   const finish = async () => {
     const userPrefs = {
       department: selectedDept,
-      level: selectedLevel,
+      level: selectedLevel ? parseInt(selectedLevel) : null,
       theme,
       timeFormat,
       weekStart,
       hasCompletedOnboarding: true,
+      notificationsEnabled: true,
+      reminderMinutes: 10,
+      notificationCourses: [],
     };
     
     try {
