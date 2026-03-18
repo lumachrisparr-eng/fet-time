@@ -113,7 +113,7 @@ export default function OnboardingScreen() {
       CPE: { code: 'CPE208', name: 'Chemical Process Principle' },
       CEN: { code: 'CEF238', name: 'C/C++ Programming' },
     };
-    return courses[selectedDept || 'CEN'];
+    return courses[selectedDept || 'CEN'] || { code: 'CEF238', name: 'C/C++ Programming' };
   };
 
   const renderStep1 = () => (
