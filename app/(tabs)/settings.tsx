@@ -1,9 +1,12 @@
 import { COURSES } from '@/constants/courses';
+import { useTheme } from '@/contexts/theme-context';
 import { useUserPreferences } from '@/hooks/use-user-preferences';
+import * as DocumentPicker from 'expo-document-picker';
 import { StatusBar } from 'expo-status-bar';
 import { Check, FileText, Sparkles, Upload } from 'lucide-react-native';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
+    Alert,
     Dimensions,
     ScrollView,
     StyleSheet,
@@ -29,24 +32,61 @@ const reminderOptions = [5, 10, 15, 30, 60];
 
 export default function SettingsScreen() {
   const { prefs, savePreferences, refresh } = useUserPreferences();
+  const { theme, setTheme, colors } = useTheme();
   const [localDept, setLocalDept] = useState(prefs.department);
   const [localLevel, setLocalLevel] = useState(prefs.level?.toString() || null);
   const [showUploadPanel, setShowUploadPanel] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+
+  // Sync local state with preferences when they load
+  useEffect(() => {
+    setLocalDept(prefs.department);
+    setLocalLevel(prefs.level?.toString() || null);
+  }, [prefs.department, prefs.level]);
 
   const handleSave = async () => {
-    await savePreferences({
+    const success = await savePreferences({
       department: localDept,
       level: localLevel ? parseInt(localLevel) : null,
     });
-    // Show toast or feedback
+    if (success) {
+      Alert.alert('Success', 'Settings saved successfully');
+    }
   };
 
   const toggleTheme = () => {
-    savePreferences({ theme: prefs.theme === 'dark' ? 'light' : 'dark' });
+    const newTheme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(newTheme);
   };
 
   const toggleNotifications = () => {
     savePreferences({ notificationsEnabled: !prefs.notificationsEnabled });
+  };
+
+  const handleFileUpload = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel', 'text/csv'],
+      });
+      
+      if (result.canceled === false && result.assets && result.assets.length > 0) {
+        const file = result.assets[0];
+        setIsUploading(true);
+        
+        // Simulate AI processing
+        setTimeout(() => {
+          setIsUploading(false);
+          Alert.alert(
+            'Upload Complete',
+            `File "${file.name}" uploaded successfully. AI parsing would happen here.`,
+            [{ text: 'OK' }]
+          );
+        }, 2000);
+      }
+    } catch (error) {
+      console.error('Error picking document:', error);
+      Alert.alert('Error', 'Failed to pick document');
+    }
   };
 
   const setReminder = (minutes: number) => {
@@ -126,7 +166,7 @@ export default function SettingsScreen() {
                 <Text style={styles.rowSub}>Easy on the eyes</Text>
               </View>
               <Switch
-                value={prefs.theme === 'dark'}
+                value={theme === 'dark'}
                 onValueChange={toggleTheme}
                 trackColor={{ false: '#272620', true: '#f5c842' }}
                 thumbColor="#fff"
@@ -239,16 +279,29 @@ export default function SettingsScreen() {
             </View>
 
             {/* Drop Zone */}
-            <TouchableOpacity style={styles.dropzone}>
-              <FileText size={28} color="#8a877e" style={{ marginBottom: 10 }} />
-              <Text style={styles.dropzoneTitle}>Drop your timetable here</Text>
-              <Text style={styles.dropzoneSub}>or tap to browse files</Text>
-              <View style={styles.fileTypes}>
-                <Text style={styles.fileType}>PDF</Text>
-                <Text style={styles.fileType}>XLSX</Text>
-                <Text style={styles.fileType}>XLS</Text>
-                <Text style={styles.fileType}>CSV</Text>
-              </View>
+            <TouchableOpacity 
+              style={[styles.dropzone, isUploading && styles.dropzoneUploading]} 
+              onPress={handleFileUpload}
+              disabled={isUploading}>
+              {isUploading ? (
+                <>
+                  <Sparkles size={28} color="#a78bfa" style={{ marginBottom: 10 }} />
+                  <Text style={styles.dropzoneTitle}>Processing...</Text>
+                  <Text style={styles.dropzoneSub}>AI is parsing your timetable</Text>
+                </>
+              ) : (
+                <>
+                  <FileText size={28} color="#8a877e" style={{ marginBottom: 10 }} />
+                  <Text style={styles.dropzoneTitle}>Tap to upload timetable</Text>
+                  <Text style={styles.dropzoneSub}>Browse for PDF, Excel, or CSV files</Text>
+                  <View style={styles.fileTypes}>
+                    <Text style={styles.fileType}>PDF</Text>
+                    <Text style={styles.fileType}>XLSX</Text>
+                    <Text style={styles.fileType}>XLS</Text>
+                    <Text style={styles.fileType}>CSV</Text>
+                  </View>
+                </>
+              )}
             </TouchableOpacity>
 
             {/* Note */}
@@ -583,6 +636,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     alignItems: 'center',
     backgroundColor: '#272620',
+  },
+  dropzoneUploading: {
+    borderColor: '#a78bfa',
+    backgroundColor: 'rgba(167,139,250,0.12)',
   },
   dropzoneTitle: {
     fontSize: 13,
