@@ -1,7 +1,8 @@
-import { COURSES } from '@/constants/courses';
+import { COURSES, DAYS, DayOfWeek } from '@/constants/courses';
 import { useTheme } from '@/contexts/theme-context';
-import { useUserPreferences } from '@/hooks/use-user-preferences';
+import { CustomCourse, useUserPreferences } from '@/hooks/use-user-preferences';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
 import { StatusBar } from 'expo-status-bar';
 import { Check, FileText, Sparkles, Upload, X } from 'lucide-react-native';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -144,19 +145,58 @@ export default function SettingsScreen() {
   const handleFileUpload = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: ['application/pdf',
-          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          'application/vnd.ms-excel',
-          'text/csv'],
+        type: ['text/csv', 'text/comma-separated-values'],
       });
       if (!result.canceled && result.assets?.length > 0) {
         const file = result.assets[0];
         setIsUploading(true);
-        setTimeout(async () => {
+        
+        try {
+          // Read actual file content
+          const content = await FileSystem.readAsStringAsync(file.uri, { encoding: 'utf8' });
+          
+          // Very simple CSV parser (assumes Code,Name,Day,Time,Hall,Lecturer,Dept,Level format)
+          const lines = content.split('\n').filter(l => l.trim() !== '');
+          const newCustomCourses: CustomCourse[] = [];
+          
+          // Skip header row usually
+          for (let i = 1; i < lines.length; i++) {
+            const cols = lines[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+            if (cols.length >= 4) {
+              const dayStr = cols[2].toUpperCase().substring(0, 3) as DayOfWeek;
+              if (DAYS.includes(dayStr)) {
+                newCustomCourses.push({
+                   code: cols[0],
+                   name: cols[1],
+                   day: dayStr,
+                   time: cols[3],
+                   hall: cols[4] || 'TBA',
+                   lecturer: cols[5] || 'TBA',
+                   dept: cols[6] || 'EXT',
+                   level: parseInt(cols[7]) || 100,
+                   isCustom: true
+                });
+              }
+            }
+          }
+          
+          if (newCustomCourses.length > 0) {
+            // Append rather than overwrite
+            const updatedCustom = [...prefs.customCourses, ...newCustomCourses];
+            await savePreferences({ 
+              lastImportedFile: file.name,
+              customCourses: updatedCustom 
+            });
+            showToast(`Imported ${newCustomCourses.length} courses from "${file.name}"`, 'success');
+          } else {
+            showToast('No valid courses found in CSV', 'error');
+          }
+        } catch (readErr) {
+          console.error(readErr);
+          showToast('Could not read file contents.', 'error');
+        } finally {
           setIsUploading(false);
-          await savePreferences({ lastImportedFile: file.name });
-          showToast(`"${file.name}" uploaded`, 'success');
-        }, 2000);
+        }
       }
     } catch {
       setIsUploading(false);
@@ -435,11 +475,9 @@ export default function SettingsScreen() {
                 <FileText size={26} color={C.textSecondary} style={{ marginBottom: 8 }} />
                 <Text style={[s.dropTitle, { color: C.textPrimary }]}>Tap to choose a file</Text>
                 <View style={s.fileTypes}>
-                  {['PDF', 'XLSX', 'XLS', 'CSV'].map(t => (
-                    <View key={t} style={[s.fileTag, { borderColor: C.border2 }]}>
-                      <Text style={[s.fileTagText, { color: C.textMuted }]}>{t}</Text>
-                    </View>
-                  ))}
+                  <View style={[s.fileTag, { borderColor: C.border2 }]}>
+                    <Text style={[s.fileTagText, { color: C.textMuted }]}>CSV FORMAT ONLY</Text>
+                  </View>
                 </View>
               </>
             )}

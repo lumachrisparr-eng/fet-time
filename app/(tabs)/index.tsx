@@ -1,9 +1,10 @@
 import { COURSES, Course, DAYS, DAY_FULL_NAMES, DayOfWeek } from '@/constants/courses';
 import { useTheme } from '@/contexts/theme-context';
-import { useUserPreferences } from '@/hooks/use-user-preferences';
+import { CustomCourse, useUserPreferences } from '@/hooks/use-user-preferences';
+import { useFocusEffect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Bell, BellRing } from 'lucide-react-native';
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
     ScrollView,
     StyleSheet,
@@ -18,8 +19,15 @@ function courseKey(course: Course): string {
 }
 
 export default function HomeScreen() {
-  const { prefs, formatTimeRange, isCourseNotified, toggleNotificationForCourse, getGreeting } = useUserPreferences();
+  const { prefs, formatTimeRange, isCourseNotified, toggleNotificationForCourse, getGreeting, refresh } = useUserPreferences();
   const { theme, colors } = useTheme();
+
+  // Refresh prefs when screen comes into focus (e.g., returning from Settings tab)
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+    }, [refresh])
+  );
 
   const [activeDay, setActiveDay] = useState<DayOfWeek>(() => {
     const jsDay = new Date().getDay();
@@ -36,6 +44,12 @@ export default function HomeScreen() {
     [prefs.selectedCourses]
   );
 
+  // Custom courses from CSV import as a Course-compatible list
+  const customAsCourses = useMemo(
+    () => (prefs.customCourses ?? []) as (CustomCourse & { isCustom: true })[],
+    [prefs.customCourses]
+  );
+
   const deptCourseKeys = useMemo(() => {
     if (!prefs.department || !prefs.level) return new Set<string>();
     return new Set(
@@ -46,20 +60,24 @@ export default function HomeScreen() {
   }, [prefs.department, prefs.level]);
 
   const activeDays = useMemo(() => {
-    return [...new Set(
-      COURSES
+    const customDays = customAsCourses.map(c => c.day);
+    return [...new Set([
+      ...COURSES
         .filter(c => deptCourseKeys.has(courseKey(c)) || selectedSet.has(courseKey(c)))
-        .map(c => c.day)
-    )];
-  }, [deptCourseKeys, selectedSet]);
+        .map(c => c.day),
+      ...customDays,
+    ])] as DayOfWeek[];
+  }, [deptCourseKeys, selectedSet, customAsCourses]);
 
   const coursesForDay = useMemo(() => {
-    return COURSES.filter(c => {
+    const std = COURSES.filter(c => {
       if (c.day !== activeDay) return false;
       const key = courseKey(c);
       return deptCourseKeys.has(key) || selectedSet.has(key);
     });
-  }, [activeDay, deptCourseKeys, selectedSet]);
+    const custom = customAsCourses.filter(c => c.day === activeDay);
+    return [...std, ...custom];
+  }, [activeDay, deptCourseKeys, selectedSet, customAsCourses]);
 
   const groupedCourses = useMemo(() => {
     const grouped: Record<string, Course[]> = {};
@@ -160,17 +178,22 @@ export default function HomeScreen() {
                       style={[
                         styles.courseCard,
                         { backgroundColor: C.bg3, borderColor: C.border },
-                        isExtra && { borderColor: C.purple + '55' },
+                        (isExtra || (course as any).isCustom) && { borderColor: C.purple + '55' },
                       ]}
                       activeOpacity={0.9}>
                       <View style={[
                         styles.courseAccent,
-                        { backgroundColor: isNotified ? C.green : isExtra ? C.purple : C.accent },
+                        { backgroundColor: isNotified ? C.green : (isExtra || (course as any).isCustom) ? C.purple : C.accent },
                       ]} />
                       <View style={styles.courseTop}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                          <Text style={[styles.courseCode, { color: isExtra ? C.purple : C.accent }]}>{course.code}</Text>
-                          {isExtra && (
+                          <Text style={[styles.courseCode, { color: (isExtra || (course as any).isCustom) ? C.purple : C.accent }]}>{course.code}</Text>
+                          {(course as any).isCustom && (
+                            <View style={[styles.extraBadge, { backgroundColor: C.purpleDim }]}>
+                              <Text style={[styles.extraBadgeText, { color: C.purple }]}>CUSTOM</Text>
+                            </View>
+                          )}
+                          {isExtra && !(course as any).isCustom && (
                             <View style={[styles.extraBadge, { backgroundColor: C.purpleDim }]}>
                               <Text style={[styles.extraBadgeText, { color: C.purple }]}>{course.dept}</Text>
                             </View>

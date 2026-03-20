@@ -1,5 +1,18 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useCallback, useEffect, useState } from 'react';
+import { DayOfWeek } from '@/constants/courses';
+import { useCallback, useEffect, useRef, useState } from 'react';
+
+export interface CustomCourse {
+  code: string;
+  name: string;
+  day: DayOfWeek;
+  time: string;
+  hall: string;
+  lecturer: string;
+  dept: string;
+  level: number;
+  isCustom: true;
+}
 
 export interface UserPreferences {
   department: string | null;
@@ -11,8 +24,8 @@ export interface UserPreferences {
   notificationsEnabled: boolean;
   reminderMinutes: number;
   notificationCourses: string[];
-  /** Keys of individually selected courses from any dept (format: "CODE-DAY-TIME") */
   selectedCourses: string[];
+  customCourses: CustomCourse[];
   lastImportedFile?: string;
 }
 
@@ -27,6 +40,7 @@ const DEFAULT_PREFERENCES: UserPreferences = {
   reminderMinutes: 10,
   notificationCourses: [],
   selectedCourses: [],
+  customCourses: [],
 };
 
 const STORAGE_KEY = 'userPreferences';
@@ -34,6 +48,8 @@ const STORAGE_KEY = 'userPreferences';
 export function useUserPreferences() {
   const [prefs, setPrefs] = useState<UserPreferences>(DEFAULT_PREFERENCES);
   const [isLoading, setIsLoading] = useState(true);
+  // Always-fresh ref so callbacks never have stale prefs
+  const prefsRef = useRef<UserPreferences>(DEFAULT_PREFERENCES);
 
   useEffect(() => {
     loadPreferences();
@@ -43,7 +59,9 @@ export function useUserPreferences() {
     try {
       const stored = await AsyncStorage.getItem(STORAGE_KEY);
       if (stored) {
-        setPrefs({ ...DEFAULT_PREFERENCES, ...JSON.parse(stored) });
+        const loaded = { ...DEFAULT_PREFERENCES, ...JSON.parse(stored) };
+        prefsRef.current = loaded;
+        setPrefs(loaded);
       }
     } catch (error) {
       console.error('Error loading preferences:', error);
@@ -52,42 +70,43 @@ export function useUserPreferences() {
     }
   };
 
+  /**
+   * ALWAYS reads fresh from AsyncStorage before merging — prevents the stale
+   * closure bug where theme-context writes directly to storage and savePreferences
+   * would overwrite it with the stale in-memory value.
+   */
   const savePreferences = useCallback(async (newPrefs: Partial<UserPreferences>) => {
     try {
-      const updated = { ...prefs, ...newPrefs };
+      const stored = await AsyncStorage.getItem(STORAGE_KEY);
+      const fresh: UserPreferences = stored
+        ? { ...DEFAULT_PREFERENCES, ...JSON.parse(stored) }
+        : { ...DEFAULT_PREFERENCES };
+      const updated = { ...fresh, ...newPrefs };
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      prefsRef.current = updated;
       setPrefs(updated);
       return true;
     } catch (error) {
       console.error('Error saving preferences:', error);
       return false;
     }
-  }, [prefs]);
+  }, []); // no deps — reads live from storage every call
 
   const toggleNotificationForCourse = useCallback(async (courseKey: string) => {
-    const current = new Set(prefs.notificationCourses);
-    if (current.has(courseKey)) {
-      current.delete(courseKey);
-    } else {
-      current.add(courseKey);
-    }
+    const current = new Set(prefsRef.current.notificationCourses);
+    if (current.has(courseKey)) current.delete(courseKey); else current.add(courseKey);
     await savePreferences({ notificationCourses: Array.from(current) });
-  }, [prefs.notificationCourses, savePreferences]);
+  }, [savePreferences]);
 
   const isCourseNotified = useCallback((courseKey: string) => {
     return prefs.notificationsEnabled && prefs.notificationCourses.includes(courseKey);
   }, [prefs.notificationsEnabled, prefs.notificationCourses]);
 
-  /** Toggle an individually selected course (from any dept) */
   const toggleSelectedCourse = useCallback(async (key: string) => {
-    const current = new Set(prefs.selectedCourses);
-    if (current.has(key)) {
-      current.delete(key);
-    } else {
-      current.add(key);
-    }
+    const current = new Set(prefsRef.current.selectedCourses);
+    if (current.has(key)) current.delete(key); else current.add(key);
     await savePreferences({ selectedCourses: Array.from(current) });
-  }, [prefs.selectedCourses, savePreferences]);
+  }, [savePreferences]);
 
   const isCourseSelected = useCallback((key: string) => {
     return prefs.selectedCourses.includes(key);
