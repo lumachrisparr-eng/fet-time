@@ -11,6 +11,9 @@ export interface UserPreferences {
   notificationsEnabled: boolean;
   reminderMinutes: number;
   notificationCourses: string[];
+  /** Keys of individually selected courses from any dept (format: "CODE-DAY-TIME") */
+  selectedCourses: string[];
+  lastImportedFile?: string;
 }
 
 const DEFAULT_PREFERENCES: UserPreferences = {
@@ -23,6 +26,7 @@ const DEFAULT_PREFERENCES: UserPreferences = {
   notificationsEnabled: true,
   reminderMinutes: 10,
   notificationCourses: [],
+  selectedCourses: [],
 };
 
 const STORAGE_KEY = 'userPreferences';
@@ -74,6 +78,21 @@ export function useUserPreferences() {
     return prefs.notificationsEnabled && prefs.notificationCourses.includes(courseKey);
   }, [prefs.notificationsEnabled, prefs.notificationCourses]);
 
+  /** Toggle an individually selected course (from any dept) */
+  const toggleSelectedCourse = useCallback(async (key: string) => {
+    const current = new Set(prefs.selectedCourses);
+    if (current.has(key)) {
+      current.delete(key);
+    } else {
+      current.add(key);
+    }
+    await savePreferences({ selectedCourses: Array.from(current) });
+  }, [prefs.selectedCourses, savePreferences]);
+
+  const isCourseSelected = useCallback((key: string) => {
+    return prefs.selectedCourses.includes(key);
+  }, [prefs.selectedCourses]);
+
   const formatTime = useCallback((time: string) => {
     if (prefs.timeFormat === '24') return time;
     const [hours, minutes] = time.split(':').map(Number);
@@ -100,6 +119,8 @@ export function useUserPreferences() {
     savePreferences,
     toggleNotificationForCourse,
     isCourseNotified,
+    toggleSelectedCourse,
+    isCourseSelected,
     formatTime,
     formatTimeRange,
     getGreeting,

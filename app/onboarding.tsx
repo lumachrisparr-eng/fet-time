@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTheme } from '@/contexts/theme-context';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
@@ -27,6 +28,7 @@ const levels = ['200', '300', '400', '500'];
 
 export default function OnboardingScreen() {
   const router = useRouter();
+  const { setTheme: applyTheme } = useTheme();
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedDept, setSelectedDept] = useState<string | null>(null);
   const [selectedLevel, setSelectedLevel] = useState<string | null>(null);
@@ -91,10 +93,13 @@ export default function OnboardingScreen() {
       notificationsEnabled: true,
       reminderMinutes: 10,
       notificationCourses: [],
+      selectedCourses: [],
     };
     
     try {
       await AsyncStorage.setItem('userPreferences', JSON.stringify(userPrefs));
+      // Apply theme to context immediately so app opens in chosen theme
+      applyTheme(theme);
       setCurrentStep(3);
     } catch (error) {
       console.error('Error saving preferences:', error);
