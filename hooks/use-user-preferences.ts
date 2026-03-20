@@ -3,6 +3,7 @@ import { DayOfWeek } from '@/constants/courses';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 export interface CustomCourse {
+  id: string; // unique ID so we can edit/delete
   code: string;
   name: string;
   day: DayOfWeek;
@@ -12,6 +13,12 @@ export interface CustomCourse {
   dept: string;
   level: number;
   isCustom: true;
+}
+
+export interface CustomTimetable {
+  id: string;
+  name: string;
+  courses: CustomCourse[];
 }
 
 export interface UserPreferences {
@@ -25,7 +32,11 @@ export interface UserPreferences {
   reminderMinutes: number;
   notificationCourses: string[];
   selectedCourses: string[];
-  customCourses: CustomCourse[];
+  hiddenCourses: string[]; // keys of official courses the user has deleted/hidden
+  courseOverrides: Record<string, any>; // user edits perfectly overlaying official courses
+  customCourses: CustomCourse[]; // custom courses merged into 'default' timetable
+  timetables: CustomTimetable[]; // arbitrary other timetables
+  activeTimetableId: string | 'default';
   lastImportedFile?: string;
 }
 
@@ -40,7 +51,11 @@ const DEFAULT_PREFERENCES: UserPreferences = {
   reminderMinutes: 10,
   notificationCourses: [],
   selectedCourses: [],
+  hiddenCourses: [],
+  courseOverrides: {},
   customCourses: [],
+  timetables: [],
+  activeTimetableId: 'default',
 };
 
 const STORAGE_KEY = 'userPreferences';
@@ -112,6 +127,65 @@ export function useUserPreferences() {
     return prefs.selectedCourses.includes(key);
   }, [prefs.selectedCourses]);
 
+  const hideOfficialCourse = useCallback(async (key: string) => {
+    const current = new Set(prefsRef.current.hiddenCourses || []);
+    current.add(key);
+    await savePreferences({ hiddenCourses: Array.from(current) });
+  }, [savePreferences]);
+
+  const updateOfficialCourse = useCallback(async (key: string, updates: any) => {
+    const currentMap = { ...(prefsRef.current.courseOverrides || {}) };
+    currentMap[key] = { ...(currentMap[key] || {}), ...updates };
+    await savePreferences({ courseOverrides: currentMap });
+  }, [savePreferences]);
+
+  const removeCustomCourse = useCallback(async (customId: string) => {
+    if (prefsRef.current.activeTimetableId === 'default') {
+      const updated = prefsRef.current.customCourses.filter(c => c.id !== customId);
+      await savePreferences({ customCourses: updated });
+    } else {
+      const updatedTimetables = prefsRef.current.timetables.map(t => {
+        if (t.id === prefsRef.current.activeTimetableId) {
+          return { ...t, courses: t.courses.filter(c => c.id !== customId) };
+        }
+        return t;
+      });
+      await savePreferences({ timetables: updatedTimetables });
+    }
+  }, [savePreferences]);
+
+  const updateCustomCourse = useCallback(async (customId: string, updates: Partial<CustomCourse>) => {
+    if (prefsRef.current.activeTimetableId === 'default') {
+      const updated = prefsRef.current.customCourses.map(c => c.id === customId ? { ...c, ...updates } : c);
+      await savePreferences({ customCourses: updated });
+    } else {
+      const updatedTimetables = prefsRef.current.timetables.map(t => {
+        if (t.id === prefsRef.current.activeTimetableId) {
+          return { ...t, courses: t.courses.map(c => c.id === customId ? { ...c, ...updates } : c) };
+        }
+        return t;
+      });
+      await savePreferences({ timetables: updatedTimetables });
+    }
+  }, [savePreferences]);
+
+  const createTimetable = useCallback(async (name: string, courses: CustomCourse[]) => {
+    const newTb: CustomTimetable = { id: Date.now().toString(), name, courses };
+    const updated = [...prefsRef.current.timetables, newTb];
+    await savePreferences({ timetables: updated, activeTimetableId: newTb.id });
+  }, [savePreferences]);
+
+  const deleteTimetable = useCallback(async (id: string) => {
+    const updated = prefsRef.current.timetables.filter(t => t.id !== id);
+    let active = prefsRef.current.activeTimetableId;
+    if (active === id) active = 'default';
+    await savePreferences({ timetables: updated, activeTimetableId: active });
+  }, [savePreferences]);
+
+  const setActiveTimetable = useCallback(async (id: string | 'default') => {
+    await savePreferences({ activeTimetableId: id });
+  }, [savePreferences]);
+
   const formatTime = useCallback((time: string) => {
     if (prefs.timeFormat === '24') return time;
     const [hours, minutes] = time.split(':').map(Number);
@@ -140,6 +214,13 @@ export function useUserPreferences() {
     isCourseNotified,
     toggleSelectedCourse,
     isCourseSelected,
+    hideOfficialCourse,
+    updateOfficialCourse,
+    removeCustomCourse,
+    updateCustomCourse,
+    createTimetable,
+    deleteTimetable,
+    setActiveTimetable,
     formatTime,
     formatTimeRange,
     getGreeting,

@@ -11,6 +11,8 @@ import {
     Text,
     TouchableOpacity,
     View,
+    Modal,
+    TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -19,10 +21,15 @@ function courseKey(course: Course): string {
 }
 
 export default function HomeScreen() {
-  const { prefs, formatTimeRange, isCourseNotified, toggleNotificationForCourse, getGreeting, refresh } = useUserPreferences();
+  const { prefs, formatTimeRange, isCourseNotified, toggleNotificationForCourse, getGreeting, refresh, removeCustomCourse, updateCustomCourse, hideOfficialCourse, updateOfficialCourse } = useUserPreferences();
   const { theme, colors } = useTheme();
 
-  // Refresh prefs when screen comes into focus (e.g., returning from Settings tab)
+  // Selected Course Actions
+  const [selectedActionCourse, setSelectedActionCourse] = useState<any>(null);
+  const [isEditingCourse, setIsEditingCourse] = useState(false);
+  const [editForm, setEditForm] = useState({ name: '', code: '', time: '', hall: '', lecturer: '' });
+
+  // Refresh prefs when screen comes into focus
   useFocusEffect(
     useCallback(() => {
       refresh();
@@ -59,25 +66,41 @@ export default function HomeScreen() {
     );
   }, [prefs.department, prefs.level]);
 
+  // If not default timetable, grab the custom one
+  const activeTb = useMemo(() => prefs.timetables.find(t => t.id === prefs.activeTimetableId), [prefs]);
+
   const activeDays = useMemo(() => {
+    if (activeTb) return [...new Set(activeTb.courses.map(c => c.day))] as DayOfWeek[];
     const customDays = customAsCourses.map(c => c.day);
     return [...new Set([
       ...COURSES
         .filter(c => deptCourseKeys.has(courseKey(c)) || selectedSet.has(courseKey(c)))
-        .map(c => c.day),
+        .map(c => {
+           // check if override changed the day
+           const override = prefs.courseOverrides?.[courseKey(c)];
+           return override?.day || c.day;
+        }),
       ...customDays,
     ])] as DayOfWeek[];
-  }, [deptCourseKeys, selectedSet, customAsCourses]);
+  }, [activeTb, deptCourseKeys, selectedSet, customAsCourses, prefs.courseOverrides]);
 
   const coursesForDay = useMemo(() => {
+    if (activeTb) return activeTb.courses.filter(c => c.day === activeDay);
     const std = COURSES.filter(c => {
-      if (c.day !== activeDay) return false;
       const key = courseKey(c);
-      return deptCourseKeys.has(key) || selectedSet.has(key);
+      if (prefs.hiddenCourses?.includes(key)) return false;
+      if (!(deptCourseKeys.has(key) || selectedSet.has(key))) return false;
+      const override = prefs.courseOverrides?.[key];
+      const effDay = override?.day || c.day;
+      return effDay === activeDay;
+    }).map(c => {
+      const origKey = courseKey(c);
+      const override = prefs.courseOverrides?.[origKey];
+      return override ? { ...c, ...override, _originalKey: origKey } : { ...c, _originalKey: origKey };
     });
     const custom = customAsCourses.filter(c => c.day === activeDay);
-    return [...std, ...custom];
-  }, [activeDay, deptCourseKeys, selectedSet, customAsCourses]);
+    return [...std, ...custom] as Course[];
+  }, [activeTb, activeDay, deptCourseKeys, selectedSet, customAsCourses, prefs.hiddenCourses, prefs.courseOverrides]);
 
   const groupedCourses = useMemo(() => {
     const grouped: Record<string, Course[]> = {};
@@ -180,7 +203,15 @@ export default function HomeScreen() {
                         { backgroundColor: C.bg3, borderColor: C.border },
                         (isExtra || (course as any).isCustom) && { borderColor: C.purple + '55' },
                       ]}
-                      activeOpacity={0.9}>
+                      activeOpacity={0.7}
+                      onPress={() => {
+                        setSelectedActionCourse(course);
+                        setIsEditingCourse(false);
+                        setEditForm({
+                          name: course.name, code: course.code, time: course.time, hall: course.hall, lecturer: course.lecturer
+                        });
+                      }}
+                    >
                       <View style={[
                         styles.courseAccent,
                         { backgroundColor: isNotified ? C.green : (isExtra || (course as any).isCustom) ? C.purple : C.accent },
@@ -222,6 +253,113 @@ export default function HomeScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* ── Action Modal ── */}
+      <Modal visible={!!selectedActionCourse} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 }}>
+           <View style={{ backgroundColor: C.bg, borderRadius: 16, padding: 20 }}>
+             
+             {isEditingCourse ? (
+               <View>
+                 <Text style={{ fontSize: 18, fontWeight: '700', color: C.textPrimary, marginBottom: 12 }}>Edit Course</Text>
+                 
+                 <Text style={{ fontSize: 11, color: C.textMuted, marginBottom: 4, fontWeight: '600' }}>COURSE CODE</Text>
+                 <TextInput
+                   style={[styles.editInput, { color: C.textPrimary, borderColor: C.border }]}
+                   value={editForm.code} onChangeText={t => setEditForm(f => ({ ...f, code: t }))}
+                 />
+
+                 <Text style={{ fontSize: 11, color: C.textMuted, marginBottom: 4, fontWeight: '600' }}>COURSE NAME</Text>
+                 <TextInput
+                   style={[styles.editInput, { color: C.textPrimary, borderColor: C.border }]}
+                   value={editForm.name} onChangeText={t => setEditForm(f => ({ ...f, name: t }))}
+                 />
+
+                 <Text style={{ fontSize: 11, color: C.textMuted, marginBottom: 4, fontWeight: '600' }}>TIME (e.g. 08:00-10:00)</Text>
+                 <TextInput
+                   style={[styles.editInput, { color: C.textPrimary, borderColor: C.border }]}
+                   value={editForm.time} onChangeText={t => setEditForm(f => ({ ...f, time: t }))}
+                 />
+
+                 <Text style={{ fontSize: 11, color: C.textMuted, marginBottom: 4, fontWeight: '600' }}>ROOM / HALL</Text>
+                 <TextInput
+                   style={[styles.editInput, { color: C.textPrimary, borderColor: C.border }]}
+                   value={editForm.hall} onChangeText={t => setEditForm(f => ({ ...f, hall: t }))}
+                 />
+
+                 <Text style={{ fontSize: 11, color: C.textMuted, marginBottom: 4, fontWeight: '600' }}>LECTURER</Text>
+                 <TextInput
+                   style={[styles.editInput, { color: C.textPrimary, borderColor: C.border }]}
+                   value={editForm.lecturer} onChangeText={t => setEditForm(f => ({ ...f, lecturer: t }))}
+                 />
+
+                 <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+                   <TouchableOpacity 
+                      style={{ flex: 1, padding: 14, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: C.border }}
+                      onPress={() => setIsEditingCourse(false)}
+                   >
+                     <Text style={{ color: C.textPrimary, fontWeight: '600' }}>Cancel</Text>
+                   </TouchableOpacity>
+                   <TouchableOpacity 
+                     style={{ flex: 1, padding: 14, borderRadius: 10, alignItems: 'center', backgroundColor: C.accent }}
+                     onPress={async () => {
+                        if (selectedActionCourse.isCustom) {
+                           await updateCustomCourse(selectedActionCourse.id, editForm);
+                        } else {
+                           await updateOfficialCourse(selectedActionCourse._originalKey, editForm);
+                        }
+                        refresh();
+                        setSelectedActionCourse(null);
+                     }}
+                   >
+                     <Text style={{ color: '#1a1600', fontWeight: '600' }}>Save</Text>
+                   </TouchableOpacity>
+                 </View>
+               </View>
+             ) : (
+               <View>
+                 <Text style={{ fontSize: 18, fontWeight: '700', color: C.textPrimary, marginBottom: 8 }}>
+                   {selectedActionCourse?.code}
+                 </Text>
+                 <Text style={{ fontSize: 14, color: C.textSecondary, marginBottom: 20 }}>
+                   {selectedActionCourse?.name}
+                 </Text>
+                 
+                    <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
+                      <TouchableOpacity 
+                        style={{ flex: 1, backgroundColor: C.purple, padding: 14, borderRadius: 10, alignItems: 'center' }}
+                        onPress={() => setIsEditingCourse(true)}
+                      >
+                        <Text style={{ color: '#fff', fontWeight: '600' }}>Edit Course</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        style={{ flex: 1, backgroundColor: C.red || 'red', padding: 14, borderRadius: 10, alignItems: 'center' }}
+                        onPress={async () => {
+                           if (selectedActionCourse.isCustom) {
+                             await removeCustomCourse(selectedActionCourse.id);
+                           } else {
+                             await hideOfficialCourse(selectedActionCourse._originalKey);
+                           }
+                           refresh();
+                           setSelectedActionCourse(null);
+                        }}
+                      >
+                        <Text style={{ color: '#fff', fontWeight: '600' }}>Delete Course</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                 <TouchableOpacity 
+                    style={{ padding: 14, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: C.border }}
+                    onPress={() => setSelectedActionCourse(null)}
+                 >
+                   <Text style={{ color: C.textPrimary, fontWeight: '600' }}>Close Options</Text>
+                 </TouchableOpacity>
+               </View>
+             )}
+           </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 }
@@ -264,4 +402,11 @@ const styles = StyleSheet.create({
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   emptyIcon: { fontSize: 48, marginBottom: 16, opacity: 0.5 },
   emptyText: { fontSize: 14 },
+  editInput: {
+      borderWidth: 1,
+      borderRadius: 10,
+      padding: 12,
+      marginBottom: 12,
+      fontSize: 14,
+  }
 });

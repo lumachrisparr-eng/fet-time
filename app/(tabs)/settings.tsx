@@ -98,11 +98,18 @@ const toastStyles = StyleSheet.create({
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function SettingsScreen() {
-  const { prefs, savePreferences, toggleSelectedCourse, isCourseSelected } = useUserPreferences();
+  const { prefs, savePreferences, toggleSelectedCourse, isCourseSelected, createTimetable, setActiveTimetable, deleteTimetable } = useUserPreferences();
   const { theme, setTheme, colors: C } = useTheme();
   const [localDept, setLocalDept] = useState<string | null>(null);
   const [localLevel, setLocalLevel] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  
+  // AI Flow Modals
+  const [showParseModal, setShowParseModal] = useState(false);
+  const [pendingAIParsed, setPendingAIParsed] = useState<CustomCourse[]>([]);
+  const [pendingFilename, setPendingFilename] = useState('');
+  const [newTbName, setNewTbName] = useState('');
+  
   const [showCourseModal, setShowCourseModal] = useState(false);
   const [courseSearch, setCourseSearch] = useState('');
   const [filterDept, setFilterDept] = useState<string | null>(null);
@@ -145,55 +152,55 @@ export default function SettingsScreen() {
   const handleFileUpload = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: ['text/csv', 'text/comma-separated-values'],
+        type: '*/*',
       });
       if (!result.canceled && result.assets?.length > 0) {
         const file = result.assets[0];
         setIsUploading(true);
         
         try {
-          // Read actual file content
-          const content = await FileSystem.readAsStringAsync(file.uri, { encoding: 'utf8' });
+          // Simulate AI processing delay (3 seconds)
+          await new Promise(res => setTimeout(res, 3000));
+
+          // Mock parsed courses. In reality this would be the AI API output.
+          // Since it's a simulation, we construct some mock courses or try to parse as CSV if it IS a CSV.
+          let newCustomCourses: CustomCourse[] = [];
           
-          // Very simple CSV parser (assumes Code,Name,Day,Time,Hall,Lecturer,Dept,Level format)
-          const lines = content.split('\n').filter(l => l.trim() !== '');
-          const newCustomCourses: CustomCourse[] = [];
-          
-          // Skip header row usually
-          for (let i = 1; i < lines.length; i++) {
-            const cols = lines[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
-            if (cols.length >= 4) {
-              const dayStr = cols[2].toUpperCase().substring(0, 3) as DayOfWeek;
-              if (DAYS.includes(dayStr)) {
-                newCustomCourses.push({
-                   code: cols[0],
-                   name: cols[1],
-                   day: dayStr,
-                   time: cols[3],
-                   hall: cols[4] || 'TBA',
-                   lecturer: cols[5] || 'TBA',
-                   dept: cols[6] || 'EXT',
-                   level: parseInt(cols[7]) || 100,
-                   isCustom: true
-                });
+          if (file.name.endsWith('.csv')) {
+            const content = await FileSystem.readAsStringAsync(file.uri, { encoding: 'utf8' });
+            const lines = content.split('\n').filter(l => l.trim() !== '');
+            for (let i = 1; i < lines.length; i++) {
+              const cols = lines[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+              if (cols.length >= 4) {
+                const dayStr = cols[2].toUpperCase().substring(0, 3) as DayOfWeek;
+                if (DAYS.includes(dayStr)) {
+                  newCustomCourses.push({
+                     id: Math.random().toString(36).substring(2, 10),
+                     code: cols[0], name: cols[1], day: dayStr, time: cols[3],
+                     hall: cols[4] || 'TBA', lecturer: cols[5] || 'TBA',
+                     dept: cols[6] || 'EXT', level: parseInt(cols[7]) || 100, isCustom: true
+                  });
+                }
               }
             }
+          } else {
+             // Mock AI response for PDF/DOCX
+             newCustomCourses = [
+               { id: Math.random().toString(36).substring(2, 10), code: 'AI101', name: 'Intro to AI parsed from ' + file.name, day: 'MON', time: '08:00-10:00', hall: 'TBA', lecturer: 'AI Bot', dept: 'EXT', level: 100, isCustom: true },
+               { id: Math.random().toString(36).substring(2, 10), code: 'AI102', name: 'Advanced AI Parsed Core', day: 'TUE', time: '10:00-12:00', hall: 'TBA', lecturer: 'AI Bot', dept: 'EXT', level: 200, isCustom: true }
+             ];
           }
           
           if (newCustomCourses.length > 0) {
-            // Append rather than overwrite
-            const updatedCustom = [...prefs.customCourses, ...newCustomCourses];
-            await savePreferences({ 
-              lastImportedFile: file.name,
-              customCourses: updatedCustom 
-            });
-            showToast(`Imported ${newCustomCourses.length} courses from "${file.name}"`, 'success');
+             setPendingAIParsed(newCustomCourses);
+             setPendingFilename(file.name);
+             setShowParseModal(true);
           } else {
-            showToast('No valid courses found in CSV', 'error');
+            showToast('No valid courses found in file', 'error');
           }
         } catch (readErr) {
           console.error(readErr);
-          showToast('Could not read file contents.', 'error');
+          showToast('Failed to process file automatically.', 'error');
         } finally {
           setIsUploading(false);
         }
@@ -265,6 +272,49 @@ export default function SettingsScreen() {
         <View style={s.header}>
           <Text style={[s.pageTitle, { color: C.textPrimary }]}>Settings</Text>
           <Text style={[s.pageSub, { color: C.textSecondary }]}>Personalise your experience</Text>
+        </View>
+
+        {/* ── Active Timetable ── */}
+        <SectionLabel label="Timetables" colors={C} />
+        <View style={[s.card, { backgroundColor: C.bg3, borderColor: C.border }]}>
+            <TouchableOpacity 
+              style={[s.deptRow, { borderBottomColor: C.border, borderBottomWidth: 1 }, prefs.activeTimetableId === 'default' && {backgroundColor: C.accentDim}]}
+              onPress={() => setActiveTimetable('default')}
+            >
+              <View style={s.deptRowLeft}>
+                <View style={[s.deptCodeBadge, { backgroundColor: prefs.activeTimetableId === 'default' ? C.accent : C.bg4, width: 32 }]}>
+                  <Text style={{ fontSize: 13, fontWeight: '700' }}>T1</Text>
+                </View>
+                <View>
+                  <Text style={[s.deptNameText, { color: C.textPrimary, fontWeight: '600' }]}>Main Timetable</Text>
+                  <Text style={[s.rowSub, { color: C.textSecondary, marginTop: 0 }]}>Based on Department/Level settings</Text>
+                </View>
+              </View>
+              {prefs.activeTimetableId === 'default' && <Check size={16} color={C.accent} />}
+            </TouchableOpacity>
+
+            {prefs.timetables.map((tb, i) => {
+              const active = prefs.activeTimetableId === tb.id;
+              return (
+                <View key={tb.id} style={[s.deptRow, { borderBottomColor: C.border, borderBottomWidth: i===prefs.timetables.length-1?0:1 }, active && {backgroundColor: C.accentDim}]}>
+                  <TouchableOpacity style={s.deptRowLeft} onPress={() => setActiveTimetable(tb.id)}>
+                    <View style={[s.deptCodeBadge, { backgroundColor: active ? C.accent : C.bg4, width: 32 }]}>
+                      <Text style={{ fontSize: 13, fontWeight: '700' }}>T*</Text>
+                    </View>
+                    <View>
+                      <Text style={[s.deptNameText, { color: C.textPrimary, fontWeight: '600' }]}>{tb.name}</Text>
+                      <Text style={[s.rowSub, { color: C.textSecondary, marginTop: 0 }]}>{tb.courses.length} AI parsed courses</Text>
+                    </View>
+                  </TouchableOpacity>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                    {active && <Check size={16} color={C.accent} />}
+                    <TouchableOpacity onPress={() => deleteTimetable(tb.id)}>
+                      <X size={16} color={C.red || 'red'} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              );
+            })}
         </View>
 
         {/* ── Department ── */}
@@ -476,7 +526,7 @@ export default function SettingsScreen() {
                 <Text style={[s.dropTitle, { color: C.textPrimary }]}>Tap to choose a file</Text>
                 <View style={s.fileTypes}>
                   <View style={[s.fileTag, { borderColor: C.border2 }]}>
-                    <Text style={[s.fileTagText, { color: C.textMuted }]}>CSV FORMAT ONLY</Text>
+                    <Text style={[s.fileTagText, { color: C.textMuted }]}>PDF, DOCX, XLSX, CSV</Text>
                   </View>
                 </View>
               </>
@@ -628,6 +678,77 @@ export default function SettingsScreen() {
               <Text style={s.doneBtnText}>Done</Text>
             </TouchableOpacity>
           </View>
+        </SafeAreaView>
+      </Modal>
+
+      {/* ── Parse Review Modal ── */}
+      <Modal visible={showParseModal} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={[s.modalWrap, { backgroundColor: C.bg }]}>
+          <View style={[s.modalHead, { borderBottomColor: C.border }]}>
+             <View style={{ flex: 1 }}>
+               <Text style={[s.modalTitle, { color: C.textPrimary }]}>AI Parsed Courses</Text>
+               <Text style={[s.modalSub, { color: C.textSecondary }]}>Found {pendingAIParsed.length} courses in {pendingFilename}</Text>
+             </View>
+             <TouchableOpacity style={[s.closeBtn, { backgroundColor: C.bg4 }]} onPress={() => setShowParseModal(false)}>
+               <X size={17} color={C.textSecondary} />
+             </TouchableOpacity>
+          </View>
+          <ScrollView style={{ flex: 1, padding: 16 }}>
+             {pendingAIParsed.map(c => (
+               <View key={c.id} style={[s.courseCard, { backgroundColor: C.bg3, borderColor: C.border }]}>
+                  <View style={s.courseCardTop}>
+                     <Text style={[s.courseCode, { color: C.accent }]}>{c.code}</Text>
+                     <View style={[s.deptTag, { backgroundColor: C.bg4 }]}><Text style={{fontSize: 9, color: C.textMuted}}>{c.day} {c.time}</Text></View>
+                  </View>
+                  <Text style={[s.courseName, { color: C.textPrimary }]}>{c.name}</Text>
+               </View>
+             ))}
+             
+             <Text style={[s.sectionLabel, { color: C.textMuted, marginTop: 20, marginHorizontal: 0 }]}>CREATE NEW TIMETABLE?</Text>
+             <TextInput 
+               style={[s.searchInput, { borderColor: C.border, borderWidth: 1, marginTop: 8 }]} 
+               placeholder="e.g. My Custom PDF Schedule"
+               placeholderTextColor={C.textMuted}
+               value={newTbName}
+               onChangeText={setNewTbName}
+             />
+             <TouchableOpacity 
+               style={[s.saveBtn, { backgroundColor: C.accent, marginTop: 12, marginHorizontal: 0 }]}
+               onPress={async () => {
+                 if (!newTbName) return showToast('Enter a name for the new timetable', 'error');
+                 await createTimetable(newTbName, pendingAIParsed);
+                 await savePreferences({ lastImportedFile: pendingFilename });
+                 setShowParseModal(false);
+                 setNewTbName('');
+                 showToast('Created new timetable!', 'success');
+               }}
+             >
+               <Text style={s.saveBtnText}>Save as New Timetable</Text>
+               <Sparkles size={16} color="#000" />
+             </TouchableOpacity>
+             
+             <View style={{ height: 20 }} />
+             <Text style={[s.sectionLabel, { color: C.textMuted, marginHorizontal: 0 }]}>OR MERGE WITH CURRENT</Text>
+             <TouchableOpacity 
+               style={[s.saveBtn, { backgroundColor: C.bg3, borderColor: C.border, borderWidth: 1, marginHorizontal: 0, marginTop: 8 }]}
+               onPress={async () => {
+                 if (prefs.activeTimetableId === 'default') {
+                   await savePreferences({ customCourses: [...prefs.customCourses, ...pendingAIParsed], lastImportedFile: pendingFilename });
+                 } else {
+                   const tbs = prefs.timetables.map(t => {
+                     if (t.id === prefs.activeTimetableId) return { ...t, courses: [...t.courses, ...pendingAIParsed] };
+                     return t;
+                   });
+                   await savePreferences({ timetables: tbs, lastImportedFile: pendingFilename });
+                 }
+                 setShowParseModal(false);
+                 showToast('Merged into active timetable', 'success');
+               }}
+             >
+               <Text style={[s.saveBtnText, { color: C.textPrimary }]}>Merge with active timetable</Text>
+             </TouchableOpacity>
+             <View style={{ height: 60 }} />
+          </ScrollView>
         </SafeAreaView>
       </Modal>
     </SafeAreaView>
