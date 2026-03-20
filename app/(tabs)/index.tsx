@@ -258,8 +258,8 @@ export default function HomeScreen() {
       <Modal visible={!!selectedActionCourse} transparent animationType="fade">
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 }}>
            <View style={{ backgroundColor: C.bg, borderRadius: 16, padding: 20 }}>
-             
-             {isEditingCourse ? (
+           {selectedActionCourse && (  
+             isEditingCourse ? (
                <View>
                  <Text style={{ fontSize: 18, fontWeight: '700', color: C.textPrimary, marginBottom: 12 }}>Edit Course</Text>
                  
@@ -303,6 +303,7 @@ export default function HomeScreen() {
                    <TouchableOpacity 
                      style={{ flex: 1, padding: 14, borderRadius: 10, alignItems: 'center', backgroundColor: C.accent }}
                      onPress={async () => {
+                        if (!selectedActionCourse) return;
                         if (selectedActionCourse.isCustom) {
                            await updateCustomCourse(selectedActionCourse.id, editForm);
                         } else {
@@ -335,6 +336,7 @@ export default function HomeScreen() {
                       <TouchableOpacity 
                         style={{ flex: 1, backgroundColor: C.red || 'red', padding: 14, borderRadius: 10, alignItems: 'center' }}
                         onPress={async () => {
+                           if (!selectedActionCourse) return;
                            if (selectedActionCourse.isCustom) {
                              await removeCustomCourse(selectedActionCourse.id);
                            } else {
@@ -355,7 +357,8 @@ export default function HomeScreen() {
                    <Text style={{ color: C.textPrimary, fontWeight: '600' }}>Close Options</Text>
                  </TouchableOpacity>
                </View>
-             )}
+             )
+           )}
            </View>
         </View>
       </Modal>
