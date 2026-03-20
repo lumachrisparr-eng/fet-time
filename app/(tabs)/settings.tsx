@@ -3,10 +3,10 @@ import { useTheme } from '@/contexts/theme-context';
 import { useUserPreferences } from '@/hooks/use-user-preferences';
 import * as DocumentPicker from 'expo-document-picker';
 import { StatusBar } from 'expo-status-bar';
-import { Check, ChevronDown, ChevronUp, FileText, Sparkles, Upload, X } from 'lucide-react-native';
-import React, { useEffect, useMemo, useState } from 'react';
+import { Check, FileText, Sparkles, Upload, X } from 'lucide-react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-    Alert,
+    Animated,
     Dimensions,
     Modal,
     ScrollView,
@@ -19,14 +19,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 const departments = [
   { code: 'CEF', name: 'Computer Eng.' },
   { code: 'EEF', name: 'Electrical Eng.' },
   { code: 'CIV', name: 'Civil Eng.' },
   { code: 'MEF', name: 'Mechanical Eng.' },
-  { code: 'CPE', name: 'Chemical & Petroleum Eng.', fullWidth: true },
+  { code: 'CPE', name: 'Chemical & Petroleum Eng.' },
 ];
 
 const levels = ['200', '300', '400', '500'];
@@ -36,29 +36,100 @@ function courseKey(code: string, day: string, time: string) {
   return `${code}-${day}-${time}`;
 }
 
+// ─── Custom Toast ─────────────────────────────────────────────────────────────
+function useToast(colors: any) {
+  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+  const opacity = useRef(new Animated.Value(0)).current;
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const show = (msg: string, type: 'success' | 'error' = 'success') => {
+    if (timer.current) clearTimeout(timer.current);
+    setToast({ msg, type });
+    opacity.setValue(0);
+    Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+    timer.current = setTimeout(() => {
+      Animated.timing(opacity, { toValue: 0, duration: 300, useNativeDriver: true }).start(() => setToast(null));
+    }, 2500);
+  };
+
+  const ToastComponent = toast ? (
+    <Animated.View
+      style={[
+        toastStyles.toast,
+        {
+          opacity,
+          backgroundColor: colors.bg3,
+          borderColor: toast.type === 'success' ? colors.green + '55' : colors.red + '55',
+        },
+      ]}
+      pointerEvents="none">
+      <Text style={{ fontSize: 16, marginRight: 8 }}>{toast.type === 'success' ? '✓' : '✕'}</Text>
+      <Text style={[toastStyles.msg, { color: toast.type === 'success' ? colors.green : colors.red }]}>
+        {toast.msg}
+      </Text>
+    </Animated.View>
+  ) : null;
+
+  return { show, ToastComponent };
+}
+
+const toastStyles = StyleSheet.create({
+  toast: {
+    position: 'absolute',
+    bottom: 100,
+    left: 24,
+    right: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    zIndex: 999,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  msg: { fontSize: 13, fontWeight: '600', flex: 1 },
+});
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 export default function SettingsScreen() {
   const { prefs, savePreferences, toggleSelectedCourse, isCourseSelected } = useUserPreferences();
-  const { theme, setTheme, colors } = useTheme();
-  const [localDept, setLocalDept] = useState(prefs.department);
-  const [localLevel, setLocalLevel] = useState(prefs.level?.toString() || null);
+  const { theme, setTheme, colors: C } = useTheme();
+  const [localDept, setLocalDept] = useState<string | null>(null);
+  const [localLevel, setLocalLevel] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [showCourseModal, setShowCourseModal] = useState(false);
   const [courseSearch, setCourseSearch] = useState('');
   const [filterDept, setFilterDept] = useState<string | null>(null);
-
-  useEffect(() => {
-    setLocalDept(prefs.department);
-    setLocalLevel(prefs.level?.toString() || null);
-  }, [prefs.department, prefs.level]);
+  const { show: showToast, ToastComponent } = useToast(C);
 
   const isDark = theme === 'dark';
 
+  // Sync local dept/level once prefs load from storage
+  useEffect(() => {
+    if (prefs.department !== undefined) setLocalDept(prefs.department);
+    if (prefs.level !== undefined) setLocalLevel(prefs.level?.toString() ?? null);
+  }, [prefs.department, prefs.level]);
+
+  // ── Handlers ────────────────────────────────────────────────────────────────
+
+  const selectDept = (code: string) => setLocalDept(code);
+  const selectLevel = (lvl: string) => setLocalLevel(lvl);
+
   const handleSave = async () => {
-    const success = await savePreferences({
+    if (!localDept || !localLevel) {
+      showToast('Please select a department and level', 'error');
+      return;
+    }
+    const ok = await savePreferences({
       department: localDept,
-      level: localLevel ? parseInt(localLevel) : null,
+      level: parseInt(localLevel),
     });
-    if (success) Alert.alert('Saved', 'Settings applied successfully');
+    showToast(ok ? 'Settings saved ✓' : 'Save failed, try again', ok ? 'success' : 'error');
   };
 
   const toggleTheme = () => setTheme(isDark ? 'light' : 'dark');
@@ -67,13 +138,16 @@ export default function SettingsScreen() {
     savePreferences({ notificationsEnabled: !prefs.notificationsEnabled });
   };
 
-  const setReminder = (minutes: number) => savePreferences({ reminderMinutes: minutes });
-  const setTimeFormat = (format: '24' | '12') => savePreferences({ timeFormat: format });
+  const setReminder = (min: number) => savePreferences({ reminderMinutes: min });
+  const setTimeFormat = (f: '24' | '12') => savePreferences({ timeFormat: f });
 
   const handleFileUpload = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: ['application/pdf', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel', 'text/csv'],
+        type: ['application/pdf',
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'application/vnd.ms-excel',
+          'text/csv'],
       });
       if (!result.canceled && result.assets?.length > 0) {
         const file = result.assets[0];
@@ -81,20 +155,21 @@ export default function SettingsScreen() {
         setTimeout(async () => {
           setIsUploading(false);
           await savePreferences({ lastImportedFile: file.name });
-          Alert.alert('Upload Complete', `"${file.name}" uploaded successfully.`, [{ text: 'OK' }]);
+          showToast(`"${file.name}" uploaded`, 'success');
         }, 2000);
       }
-    } catch (error) {
+    } catch {
       setIsUploading(false);
-      Alert.alert('Error', 'Failed to pick document. Please try again.');
+      showToast('Failed to open file picker', 'error');
     }
   };
 
-  /* ----- Course selection modal data ----- */
+  // ── Course-picker data ───────────────────────────────────────────────────────
+
   const uniqueCourses = useMemo(() => {
     const seen = new Set<string>();
     return COURSES.filter(c => {
-      const k = `${c.code}-${c.name}`;
+      const k = `${c.code}||${c.name}`;
       if (seen.has(k)) return false;
       seen.add(k);
       return true;
@@ -104,288 +179,325 @@ export default function SettingsScreen() {
   const filteredCourses = useMemo(() => {
     const q = courseSearch.toLowerCase();
     return uniqueCourses.filter(c => {
-      const matchSearch = !q || c.code.toLowerCase().includes(q) || c.name.toLowerCase().includes(q) || c.lecturer.toLowerCase().includes(q);
-      const matchDept = !filterDept || c.dept === filterDept;
-      return matchSearch && matchDept;
+      const ok = !q || c.code.toLowerCase().includes(q)
+        || c.name.toLowerCase().includes(q)
+        || c.lecturer.toLowerCase().includes(q);
+      return ok && (!filterDept || c.dept === filterDept);
     });
   }, [uniqueCourses, courseSearch, filterDept]);
 
+  // All session keys for a given code+name
+  const allKeysOf = (code: string, name: string) =>
+    COURSES.filter(c => c.code === code && c.name === name)
+           .map(c => courseKey(c.code, c.day, c.time));
+
+  const isAdded = (code: string, name: string) =>
+    allKeysOf(code, name).some(k => isCourseSelected(k));
+
+  const toggleCourse = async (code: string, name: string) => {
+    const keys = allKeysOf(code, name);
+    for (const k of keys) await toggleSelectedCourse(k);
+  };
+
   const selectedCount = prefs.selectedCourses.length;
 
-  // ---- colour shortcuts ----
-  const C = colors;
+  // Unique added course summaries (for chips)
+  const addedCourses = useMemo(() => {
+    const seen = new Set<string>();
+    return COURSES.filter(c => {
+      const k = `${c.code}||${c.name}`;
+      if (seen.has(k)) return false;
+      const key = courseKey(c.code, c.day, c.time);
+      if (!isCourseSelected(key)) return false;
+      seen.add(k);
+      return true;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefs.selectedCourses]);
 
+  // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: C.bg }]}>
+    <SafeAreaView style={[s.container, { backgroundColor: C.bg }]}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
 
         {/* Header */}
-        <View style={styles.header}>
-          <Text style={[styles.title, { color: C.textPrimary }]}>Settings</Text>
-          <Text style={[styles.subtitle, { color: C.textSecondary }]}>Personalise your experience.</Text>
+        <View style={s.header}>
+          <Text style={[s.pageTitle, { color: C.textPrimary }]}>Settings</Text>
+          <Text style={[s.pageSub, { color: C.textSecondary }]}>Personalise your experience</Text>
         </View>
 
-        {/* Department & Level */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: C.textMuted }]}>Department</Text>
-          <View style={[styles.cardGroup, { backgroundColor: C.bg3, borderColor: C.border }]}>
-            <View style={styles.deptGrid}>
-              {departments.map((dept) => (
-                <TouchableOpacity
-                  key={dept.code}
-                  style={[
-                    styles.deptMini,
-                    { backgroundColor: C.bg4, borderColor: C.border },
-                    dept.fullWidth && styles.deptMiniFullWidth,
-                    localDept === dept.code && { borderColor: C.accent, backgroundColor: C.accentDim },
-                  ]}
-                  onPress={() => setLocalDept(dept.code)}>
-                  <Text style={[styles.deptMiniCode, { color: C.textSecondary }, localDept === dept.code && { color: C.accent }]}>
-                    {dept.code}
-                  </Text>
-                  <Text style={[styles.deptMiniName, { color: C.textMuted }]}>{dept.name}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          <Text style={[styles.sectionLabel, { marginTop: 14, color: C.textMuted }]}>Level</Text>
-          <View style={[styles.cardGroup, { backgroundColor: C.bg3, borderColor: C.border }]}>
-            <View style={styles.levelRow}>
-              {levels.map((level) => (
-                <TouchableOpacity
-                  key={level}
-                  style={[
-                    styles.levelMini,
-                    { backgroundColor: C.bg4, borderColor: C.border },
-                    localLevel === level && { borderColor: C.accent, backgroundColor: C.accentDim },
-                  ]}
-                  onPress={() => setLocalLevel(level)}>
-                  <Text style={[styles.levelMiniText, { color: C.textSecondary }, localLevel === level && { color: C.accent }]}>
-                    {level}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        </View>
-
-        {/* ── Extra Courses ── */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: C.textMuted }]}>Extra Courses</Text>
-          <TouchableOpacity
-            style={[styles.extraCoursesBtn, { backgroundColor: C.bg3, borderColor: C.purpleDim }]}
-            onPress={() => setShowCourseModal(true)}>
-            <View style={[styles.extraIcon, { backgroundColor: C.purpleDim }]}>
-              <Text style={{ fontSize: 16 }}>📚</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.extraBtnTitle, { color: C.textPrimary }]}>Browse & add courses</Text>
-              <Text style={[styles.extraBtnSub, { color: C.textSecondary }]}>
-                {selectedCount > 0 ? `${selectedCount} course${selectedCount > 1 ? 's' : ''} added from other depts` : 'Add courses from any department'}
-              </Text>
-            </View>
-            <ChevronDown size={16} color={C.textMuted} />
-          </TouchableOpacity>
-
-          {/* Selected extras chips */}
-          {prefs.selectedCourses.length > 0 && (
-            <View style={styles.selectedChips}>
-              {COURSES.filter(c => prefs.selectedCourses.includes(courseKey(c.code, c.day, c.time)))
-                .reduce<typeof COURSES>((acc, c) => {
-                  const k = `${c.code}-${c.name}`;
-                  if (!acc.find(x => `${x.code}-${x.name}` === k)) acc.push(c);
-                  return acc;
-                }, [])
-                .map(c => {
-                  const allKeys = COURSES.filter(x => x.code === c.code && x.name === c.name).map(x => courseKey(x.code, x.day, x.time));
-                  return (
-                    <TouchableOpacity
-                      key={c.code + c.name}
-                      style={[styles.chip, { backgroundColor: C.purpleDim, borderColor: C.purple + '44' }]}
-                      onPress={async () => {
-                        for (const k of allKeys) {
-                          if (isCourseSelected(k)) await toggleSelectedCourse(k);
-                        }
-                      }}>
-                      <Text style={[styles.chipText, { color: C.purple }]}>{c.code}</Text>
-                      <X size={10} color={C.purple} style={{ marginLeft: 3 }} />
-                    </TouchableOpacity>
-                  );
-                })}
-            </View>
-          )}
-        </View>
-
-        {/* Display */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: C.textMuted }]}>Display</Text>
-          <View style={[styles.cardGroup, { backgroundColor: C.bg3, borderColor: C.border }]}>
-            <View style={[styles.row, { borderBottomColor: C.border }]}>
-              <View style={styles.rowLeft}>
-                <Text style={[styles.rowLabel, { color: C.textPrimary }]}>Dark mode</Text>
-                <Text style={[styles.rowSub, { color: C.textSecondary }]}>Easy on the eyes</Text>
-              </View>
-              <Switch value={isDark} onValueChange={toggleTheme} trackColor={{ false: C.bg4, true: C.accent }} thumbColor="#fff" />
-            </View>
-            <View style={[styles.row, { borderBottomColor: C.border }]}>
-              <View style={styles.rowLeft}>
-                <Text style={[styles.rowLabel, { color: C.textPrimary }]}>Time format</Text>
-              </View>
-              <View style={[styles.segmented, { backgroundColor: C.bg4 }]}>
-                {(['24', '12'] as const).map(f => (
-                  <TouchableOpacity
-                    key={f}
-                    style={[styles.segmentOption, prefs.timeFormat === f && { backgroundColor: C.accent }]}
-                    onPress={() => setTimeFormat(f)}>
-                    <Text style={[styles.segmentText, { color: C.textSecondary }, prefs.timeFormat === f && { color: '#1a1600', fontWeight: '700' }]}>
-                      {f}h
+        {/* ── Department ── */}
+        <SectionLabel label="Department" colors={C} />
+        <View style={[s.card, { backgroundColor: C.bg3, borderColor: C.border }]}>
+          {departments.map((dept, i) => {
+            const active = localDept === dept.code;
+            return (
+              <TouchableOpacity
+                key={dept.code}
+                onPress={() => selectDept(dept.code)}
+                style={[
+                  s.deptRow,
+                  { borderTopWidth: i === 0 ? 0 : 1, borderTopColor: C.border },
+                  active && { backgroundColor: C.accentDim },
+                ]}>
+                <View style={s.deptRowLeft}>
+                  <View style={[
+                    s.deptCodeBadge,
+                    { backgroundColor: active ? C.accent : C.bg4 },
+                  ]}>
+                    <Text style={[s.deptCodeText, { color: active ? '#1a1600' : C.textSecondary }]}>
+                      {dept.code}
                     </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          </View>
-        </View>
-
-        {/* Notifications */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: C.textMuted }]}>Notifications</Text>
-          <View style={[styles.cardGroup, { backgroundColor: C.bg3, borderColor: C.border }]}>
-            <View style={[styles.notifHeader, { borderBottomColor: C.border }]}>
-              <View style={styles.rowLeft}>
-                <Text style={[styles.rowLabel, { color: C.textPrimary }]}>Class reminders</Text>
-                <Text style={[styles.rowSub, { color: C.textSecondary }]}>Get notified before each class</Text>
-              </View>
-              <Switch value={prefs.notificationsEnabled} onValueChange={toggleNotifications} trackColor={{ false: C.bg4, true: C.accent }} thumbColor="#fff" />
-            </View>
-            <View style={{ opacity: prefs.notificationsEnabled ? 1 : 0.4, padding: 12 }}>
-              <Text style={[styles.roptLabel, { color: C.textMuted }]}>Remind me before class:</Text>
-              <View style={styles.reminderOpts}>
-                {reminderOptions.map(min => (
-                  <TouchableOpacity
-                    key={min}
-                    style={[styles.ropt, { backgroundColor: C.bg4, borderColor: C.border }, prefs.reminderMinutes === min && { borderColor: C.accent, backgroundColor: C.accentDim }]}
-                    onPress={() => setReminder(min)}
-                    disabled={!prefs.notificationsEnabled}>
-                    <Text style={[styles.roptText, { color: C.textSecondary }, prefs.reminderMinutes === min && { color: C.accent, fontWeight: '700' }]}>
-                      {min} min
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <View style={[styles.notifStatus, { backgroundColor: C.greenDim, borderColor: C.green + '33' }]}>
-                <Text style={styles.notifStatusIcon}>🔔</Text>
-                <View>
-                  <Text style={[styles.notifStatusTitle, { color: C.green }]}>
-                    {prefs.notificationsEnabled ? 'Notifications active' : 'Notifications disabled'}
-                  </Text>
-                  <Text style={[styles.notifStatusSub, { color: C.textSecondary }]}>
-                    {prefs.notificationsEnabled ? `Reminding ${prefs.reminderMinutes} min before each class` : 'Enable to get class reminders'}
+                  </View>
+                  <Text style={[s.deptNameText, { color: active ? C.textPrimary : C.textSecondary }]}>
+                    {dept.name}
                   </Text>
                 </View>
-              </View>
-            </View>
-          </View>
+                {active && <Check size={16} color={C.accent} />}
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
-        {/* AI Upload */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: C.textMuted }]}>AI Timetable Import</Text>
-          <View style={[styles.cardGroup, { backgroundColor: C.bg3, borderColor: C.border }]}>
-            <View style={[styles.uploadHeader, { borderBottomColor: C.border }]}>
-              <View style={[styles.uploadIcon, { backgroundColor: C.purpleDim, borderColor: C.purple + '33' }]}>
-                <Upload size={18} color={C.purple} />
-              </View>
-              <View>
-                <Text style={[styles.uploadTitle, { color: C.textPrimary }]}>Upload new timetable</Text>
-                <Text style={[styles.uploadSub, { color: C.textSecondary }]}>AI parses any PDF or Excel file</Text>
-              </View>
-            </View>
-            {prefs.lastImportedFile && (
-              <View style={[styles.lastImport, { borderBottomColor: C.border }]}>
-                <FileText size={12} color={C.textMuted} />
-                <Text style={[styles.lastImportText, { color: C.textSecondary }]}>Last: {prefs.lastImportedFile}</Text>
-              </View>
-            )}
-            <TouchableOpacity
-              style={[styles.dropzone, { borderColor: C.border2, backgroundColor: C.bg4 }, isUploading && { borderColor: C.purple, backgroundColor: C.purpleDim }]}
-              onPress={handleFileUpload}
-              disabled={isUploading}>
-              {isUploading ? (
-                <>
-                  <Sparkles size={28} color={C.purple} style={{ marginBottom: 10 }} />
-                  <Text style={[styles.dropzoneTitle, { color: C.textPrimary }]}>Processing...</Text>
-                  <Text style={[styles.dropzoneSub, { color: C.textSecondary }]}>AI is parsing your timetable</Text>
-                </>
-              ) : (
-                <>
-                  <FileText size={28} color={C.textSecondary} style={{ marginBottom: 10 }} />
-                  <Text style={[styles.dropzoneTitle, { color: C.textPrimary }]}>Tap to upload timetable</Text>
-                  <Text style={[styles.dropzoneSub, { color: C.textSecondary }]}>Browse for PDF, Excel, or CSV files</Text>
-                  <View style={styles.fileTypes}>
-                    {['PDF','XLSX','XLS','CSV'].map(t => (
-                      <Text key={t} style={[styles.fileType, { borderColor: C.border2, color: C.textMuted }]}>{t}</Text>
-                    ))}
-                  </View>
-                </>
-              )}
-            </TouchableOpacity>
-            <View style={styles.aiNote}>
-              <Sparkles size={14} color={C.purple} />
-              <Text style={[styles.aiNoteText, { color: C.textSecondary }]}>AI will extract courses and add them to your timetable</Text>
-            </View>
-          </View>
+        {/* ── Level ── */}
+        <SectionLabel label="Level" colors={C} />
+        <View style={[s.levelRow, { gap: 8 }]}>
+          {levels.map(lvl => {
+            const active = localLevel === lvl;
+            return (
+              <TouchableOpacity
+                key={lvl}
+                onPress={() => selectLevel(lvl)}
+                style={[
+                  s.levelBtn,
+                  { backgroundColor: active ? C.accent : C.bg3, borderColor: active ? C.accent : C.border },
+                ]}>
+                <Text style={[s.levelBtnNum, { color: active ? '#1a1600' : C.textSecondary }]}>{lvl}</Text>
+                <Text style={[s.levelBtnSub, { color: active ? '#1a1600' + 'aa' : C.textMuted }]}>LEVEL</Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
-        {/* About */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: C.textMuted }]}>About</Text>
-          <View style={[styles.cardGroup, { backgroundColor: C.bg3, borderColor: C.border }]}>
-            {[
-              { label: 'Semester', value: '2nd Sem 2025/2026' },
-              { label: 'Faculty', value: 'FET · UB' },
-              { label: 'Total courses loaded', value: String(COURSES.length) },
-              { label: 'Source', value: 'Built-in' },
-            ].map((item, i, arr) => (
-              <View key={item.label} style={[styles.row, { borderBottomColor: C.border }, i === arr.length - 1 && { borderBottomWidth: 0 }]}>
-                <Text style={[styles.rowLabel, { color: C.textPrimary }]}>{item.label}</Text>
-                <Text style={[styles.rowValue, { color: C.accent }]}>{item.value}</Text>
-              </View>
+        {/* Save dept+level */}
+        <TouchableOpacity style={[s.saveBtn, { backgroundColor: C.accent }]} onPress={handleSave}>
+          <Text style={s.saveBtnText}>Apply dept & level</Text>
+          <Check size={15} color="#1a1600" />
+        </TouchableOpacity>
+
+        {/* ── Extra Courses ── */}
+        <SectionLabel label="Extra Courses" colors={C} />
+        <TouchableOpacity
+          style={[s.extraBtn, { backgroundColor: C.bg3, borderColor: C.purple + '55' }]}
+          onPress={() => setShowCourseModal(true)}>
+          <View style={[s.extraIcon, { backgroundColor: C.purpleDim }]}>
+            <Text style={{ fontSize: 18 }}>📚</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[s.extraBtnTitle, { color: C.textPrimary }]}>Browse &amp; add courses</Text>
+            <Text style={[s.extraBtnSub, { color: C.textSecondary }]}>
+              {selectedCount > 0
+                ? `${selectedCount} course${selectedCount !== 1 ? 's' : ''} added from other depts`
+                : 'Add individual courses from any department'}
+            </Text>
+          </View>
+          <View style={[s.badge, { backgroundColor: C.purpleDim }]}>
+            <Text style={[s.badgeNum, { color: C.purple }]}>{selectedCount}</Text>
+          </View>
+        </TouchableOpacity>
+
+        {addedCourses.length > 0 && (
+          <View style={s.chips}>
+            {addedCourses.map(c => (
+              <TouchableOpacity
+                key={c.code + c.name}
+                style={[s.chip, { backgroundColor: C.purpleDim, borderColor: C.purple + '44' }]}
+                onPress={() => toggleCourse(c.code, c.name)}>
+                <Text style={[s.chipCode, { color: C.purple }]}>{c.code}</Text>
+                <X size={10} color={C.purple} style={{ marginLeft: 4 }} />
+              </TouchableOpacity>
             ))}
           </View>
+        )}
+
+        {/* ── Display ── */}
+        <SectionLabel label="Display" colors={C} />
+        <View style={[s.card, { backgroundColor: C.bg3, borderColor: C.border }]}>
+          <View style={[s.row, { borderBottomWidth: 1, borderBottomColor: C.border }]}>
+            <View>
+              <Text style={[s.rowLabel, { color: C.textPrimary }]}>Dark mode</Text>
+              <Text style={[s.rowSub, { color: C.textSecondary }]}>Easy on the eyes</Text>
+            </View>
+            <Switch value={isDark} onValueChange={toggleTheme}
+              trackColor={{ false: C.bg4, true: C.accent }} thumbColor="#fff" />
+          </View>
+          <View style={s.row}>
+            <Text style={[s.rowLabel, { color: C.textPrimary }]}>Time format</Text>
+            <View style={[s.seg, { backgroundColor: C.bg4 }]}>
+              {(['24', '12'] as const).map(f => (
+                <TouchableOpacity
+                  key={f}
+                  style={[s.segOpt, prefs.timeFormat === f && { backgroundColor: C.accent }]}
+                  onPress={() => setTimeFormat(f)}>
+                  <Text style={[s.segText, { color: C.textSecondary },
+                    prefs.timeFormat === f && { color: '#1a1600', fontWeight: '700' }]}>
+                    {f}h
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
         </View>
 
-        {/* Save */}
-        <TouchableOpacity style={[styles.saveBtn, { backgroundColor: C.accent }]} onPress={handleSave}>
-          <Text style={styles.saveBtnText}>Apply changes</Text>
-          <Check size={16} color="#1a1600" />
-        </TouchableOpacity>
-        <Text style={[styles.saveNote, { color: C.textMuted }]}>Changes reflect immediately on Home tab</Text>
-        <View style={{ height: 40 }} />
+        {/* ── Notifications ── */}
+        <SectionLabel label="Notifications" colors={C} />
+        <View style={[s.card, { backgroundColor: C.bg3, borderColor: C.border }]}>
+          <View style={[s.row, { borderBottomWidth: 1, borderBottomColor: C.border }]}>
+            <View>
+              <Text style={[s.rowLabel, { color: C.textPrimary }]}>Class reminders</Text>
+              <Text style={[s.rowSub, { color: C.textSecondary }]}>Get notified before each class</Text>
+            </View>
+            <Switch value={prefs.notificationsEnabled} onValueChange={toggleNotifications}
+              trackColor={{ false: C.bg4, true: C.accent }} thumbColor="#fff" />
+          </View>
+          <View style={{ padding: 14, opacity: prefs.notificationsEnabled ? 1 : 0.4 }}>
+            <Text style={[s.subLabel, { color: C.textMuted }]}>Remind me before class</Text>
+            <View style={s.reminderRow}>
+              {reminderOptions.map(min => {
+                const active = prefs.reminderMinutes === min;
+                return (
+                  <TouchableOpacity
+                    key={min}
+                    style={[s.minBtn,
+                      { backgroundColor: active ? C.accentDim : C.bg4, borderColor: active ? C.accent : C.border }]}
+                    onPress={() => setReminder(min)}
+                    disabled={!prefs.notificationsEnabled}>
+                    <Text style={[s.minText, { color: active ? C.accent : C.textSecondary }]}>
+                      {min}m
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <View style={[s.notifStatus,
+              { backgroundColor: prefs.notificationsEnabled ? C.greenDim : C.bg4,
+                borderColor: prefs.notificationsEnabled ? C.green + '44' : C.border }]}>
+              <Text style={{ fontSize: 15 }}>{prefs.notificationsEnabled ? '🔔' : '🔕'}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={[s.notifTitle, { color: prefs.notificationsEnabled ? C.green : C.textSecondary }]}>
+                  {prefs.notificationsEnabled ? 'Reminders active' : 'Reminders off'}
+                </Text>
+                <Text style={[s.notifSub, { color: C.textSecondary }]}>
+                  {prefs.notificationsEnabled
+                    ? `${prefs.reminderMinutes} min before each class`
+                    : 'Enable to get class reminders'}
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* ── Upload ── */}
+        <SectionLabel label="AI Timetable Import" colors={C} />
+        <View style={[s.card, { backgroundColor: C.bg3, borderColor: C.border }]}>
+          <View style={[s.row, { borderBottomWidth: 1, borderBottomColor: C.border }]}>
+            <View style={[s.uploadIcon, { backgroundColor: C.purpleDim, borderColor: C.purple + '44' }]}>
+              <Upload size={16} color={C.purple} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[s.rowLabel, { color: C.textPrimary }]}>Upload new timetable</Text>
+              <Text style={[s.rowSub, { color: C.textSecondary }]}>AI parses PDF, Excel or CSV</Text>
+            </View>
+          </View>
+          {prefs.lastImportedFile && (
+            <View style={[s.lastImport, { borderBottomWidth: 1, borderBottomColor: C.border }]}>
+              <FileText size={12} color={C.textMuted} />
+              <Text style={[s.lastImportText, { color: C.textSecondary }]} numberOfLines={1}>
+                Last: {prefs.lastImportedFile}
+              </Text>
+            </View>
+          )}
+          <TouchableOpacity
+            style={[s.dropzone,
+              { borderColor: C.border2, backgroundColor: C.bg4 },
+              isUploading && { borderColor: C.purple, backgroundColor: C.purpleDim }]}
+            onPress={handleFileUpload}
+            disabled={isUploading}>
+            {isUploading ? (
+              <>
+                <Sparkles size={26} color={C.purple} style={{ marginBottom: 8 }} />
+                <Text style={[s.dropTitle, { color: C.textPrimary }]}>Processing…</Text>
+                <Text style={[s.dropSub, { color: C.textSecondary }]}>AI is parsing your timetable</Text>
+              </>
+            ) : (
+              <>
+                <FileText size={26} color={C.textSecondary} style={{ marginBottom: 8 }} />
+                <Text style={[s.dropTitle, { color: C.textPrimary }]}>Tap to choose a file</Text>
+                <View style={s.fileTypes}>
+                  {['PDF', 'XLSX', 'XLS', 'CSV'].map(t => (
+                    <View key={t} style={[s.fileTag, { borderColor: C.border2 }]}>
+                      <Text style={[s.fileTagText, { color: C.textMuted }]}>{t}</Text>
+                    </View>
+                  ))}
+                </View>
+              </>
+            )}
+          </TouchableOpacity>
+          <View style={s.aiNote}>
+            <Sparkles size={13} color={C.purple} />
+            <Text style={[s.aiNoteText, { color: C.textSecondary }]}>
+              AI extracts courses and adds them to your timetable
+            </Text>
+          </View>
+        </View>
+
+        {/* ── About ── */}
+        <SectionLabel label="About" colors={C} />
+        <View style={[s.card, { backgroundColor: C.bg3, borderColor: C.border }]}>
+          {[
+            ['Semester', '2nd Sem 2025/2026'],
+            ['Faculty', 'FET · University of Buea'],
+            ['Courses loaded', String(COURSES.length)],
+            ['Source', 'Official timetable PDF'],
+          ].map(([label, value], i, arr) => (
+            <View key={label}
+              style={[s.row, i < arr.length - 1 && { borderBottomWidth: 1, borderBottomColor: C.border }]}>
+              <Text style={[s.rowLabel, { color: C.textPrimary }]}>{label}</Text>
+              <Text style={[s.aboutValue, { color: C.accent }]}>{value}</Text>
+            </View>
+          ))}
+        </View>
+
       </ScrollView>
 
+      {/* Toast */}
+      {ToastComponent}
+
       {/* ── Course Selection Modal ── */}
-      <Modal visible={showCourseModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowCourseModal(false)}>
-        <SafeAreaView style={[styles.modalContainer, { backgroundColor: C.bg }]}>
+      <Modal visible={showCourseModal} animationType="slide" presentationStyle="pageSheet"
+        onRequestClose={() => setShowCourseModal(false)}>
+        <SafeAreaView style={[s.modalWrap, { backgroundColor: C.bg }]}>
           {/* Modal Header */}
-          <View style={[styles.modalHeader, { borderBottomColor: C.border }]}>
-            <View>
-              <Text style={[styles.modalTitle, { color: C.textPrimary }]}>Add Extra Courses</Text>
-              <Text style={[styles.modalSub, { color: C.textSecondary }]}>Tap a course to add it to your timetable</Text>
+          <View style={[s.modalHead, { borderBottomColor: C.border }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={[s.modalTitle, { color: C.textPrimary }]}>Add Extra Courses</Text>
+              <Text style={[s.modalSub, { color: C.textSecondary }]}>
+                {selectedCount > 0 ? `${selectedCount} added` : 'Tap a course to add to your timetable'}
+              </Text>
             </View>
-            <TouchableOpacity style={[styles.modalClose, { backgroundColor: C.bg4 }]} onPress={() => setShowCourseModal(false)}>
-              <X size={18} color={C.textSecondary} />
+            <TouchableOpacity style={[s.closeBtn, { backgroundColor: C.bg4 }]}
+              onPress={() => setShowCourseModal(false)}>
+              <X size={17} color={C.textSecondary} />
             </TouchableOpacity>
           </View>
 
           {/* Search */}
-          <View style={[styles.searchBar, { backgroundColor: C.bg3, borderColor: C.border }]}>
-            <Text style={{ fontSize: 14, color: C.textMuted, marginRight: 8 }}>🔍</Text>
+          <View style={[s.search, { backgroundColor: C.bg3, borderColor: C.border }]}>
+            <Text style={{ color: C.textMuted, marginRight: 8, fontSize: 15 }}>🔍</Text>
             <TextInput
-              style={[styles.searchInput, { color: C.textPrimary }]}
-              placeholder="Search by code, name or lecturer..."
+              style={[s.searchInput, { color: C.textPrimary }]}
+              placeholder="Code, course name, lecturer…"
               placeholderTextColor={C.textMuted}
               value={courseSearch}
               onChangeText={setCourseSearch}
@@ -398,81 +510,84 @@ export default function SettingsScreen() {
           </View>
 
           {/* Dept filter chips */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterRow} contentContainerStyle={{ paddingHorizontal: 16, gap: 7 }}>
-            {[null, 'CEF', 'EEF', 'CIV', 'MEF', 'CPE'].map(d => (
-              <TouchableOpacity
-                key={d ?? 'all'}
-                style={[styles.filterChip, { backgroundColor: C.bg3, borderColor: C.border }, filterDept === d && { backgroundColor: C.accentDim, borderColor: C.accent }]}
-                onPress={() => setFilterDept(d)}>
-                <Text style={[styles.filterChipText, { color: C.textSecondary }, filterDept === d && { color: C.accent }]}>
-                  {d ?? 'All'}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          {/* Course list */}
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingTop: 8 }}>
-            {filteredCourses.length === 0 && (
-              <View style={{ alignItems: 'center', paddingVertical: 40 }}>
-                <Text style={{ fontSize: 36, marginBottom: 10 }}>🔍</Text>
-                <Text style={[{ color: C.textSecondary, fontSize: 13 }]}>No courses match your search</Text>
-              </View>
-            )}
-            {filteredCourses.map(c => {
-              // All session keys for this course code+name
-              const allKeys = COURSES.filter(x => x.code === c.code && x.name === c.name).map(x => courseKey(x.code, x.day, x.time));
-              const isAdded = allKeys.some(k => isCourseSelected(k));
-              const isOwn = c.dept === prefs.department && c.level === prefs.level;
-
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}
+            style={{ maxHeight: 44, marginVertical: 8 }}
+            contentContainerStyle={{ paddingHorizontal: 16, gap: 7, alignItems: 'center' }}>
+            {[null, 'CEF', 'EEF', 'CIV', 'MEF', 'CPE'].map(d => {
+              const active = filterDept === d;
               return (
                 <TouchableOpacity
-                  key={c.code + c.name}
-                  style={[
-                    styles.modalCourseCard,
-                    { backgroundColor: C.bg3, borderColor: C.border },
-                    isAdded && { borderColor: C.purple, backgroundColor: C.purpleDim },
-                    isOwn && { borderColor: C.accent + '55', backgroundColor: C.accentDim },
-                  ]}
-                  onPress={async () => {
-                    if (isOwn) return; // already in main timetable
-                    for (const k of allKeys) {
-                      await toggleSelectedCourse(k);
-                    }
-                  }}
-                  activeOpacity={isOwn ? 1 : 0.8}>
-                  <View style={styles.modalCardTop}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
-                      <Text style={[styles.modalCode, { color: isAdded ? C.purple : isOwn ? C.accent : C.textPrimary }]}>{c.code}</Text>
-                      <View style={[styles.deptTag, { backgroundColor: C.bg4 }]}>
-                        <Text style={[styles.deptTagText, { color: C.textMuted }]}>{c.dept}</Text>
-                      </View>
-                      {isOwn && (
-                        <View style={[styles.deptTag, { backgroundColor: C.accentDim }]}>
-                          <Text style={[styles.deptTagText, { color: C.accent }]}>Your dept</Text>
-                        </View>
-                      )}
-                    </View>
-                    {!isOwn && (
-                      <View style={[styles.checkCircle, { borderColor: isAdded ? C.purple : C.border }, isAdded && { backgroundColor: C.purple }]}>
-                        {isAdded && <Check size={10} color="#fff" />}
-                      </View>
-                    )}
-                  </View>
-                  <Text style={[styles.modalName, { color: C.textPrimary }]}>{c.name}</Text>
-                  {c.lecturer ? <Text style={[styles.modalLecturer, { color: C.textSecondary }]}>{c.lecturer}</Text> : null}
+                  key={d ?? 'all'}
+                  style={[s.filterChip,
+                    { backgroundColor: active ? C.accentDim : C.bg3, borderColor: active ? C.accent : C.border }]}
+                  onPress={() => setFilterDept(d)}>
+                  <Text style={[s.filterText, { color: active ? C.accent : C.textSecondary }]}>
+                    {d ?? 'All'}
+                  </Text>
                 </TouchableOpacity>
               );
             })}
           </ScrollView>
 
-          {/* Bottom bar */}
-          <View style={[styles.modalFooter, { backgroundColor: C.bg, borderTopColor: C.border }]}>
-            <Text style={[styles.modalFooterText, { color: C.textSecondary }]}>
-              {selectedCount} extra course{selectedCount !== 1 ? 's' : ''} added
+          {/* List */}
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 20 }}>
+            {filteredCourses.length === 0 && (
+              <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+                <Text style={{ fontSize: 34, marginBottom: 12 }}>🔍</Text>
+                <Text style={{ color: C.textSecondary, fontSize: 13 }}>No courses match</Text>
+              </View>
+            )}
+            {filteredCourses.map(c => {
+              const added = isAdded(c.code, c.name);
+              const isOwn = c.dept === prefs.department && c.level === prefs.level;
+              return (
+                <TouchableOpacity
+                  key={c.code + c.name}
+                  style={[
+                    s.courseCard,
+                    { backgroundColor: C.bg3, borderColor: C.border },
+                    added && { borderColor: C.purple, backgroundColor: C.purpleDim },
+                    isOwn && { borderColor: C.accent + '55', backgroundColor: C.accentDim },
+                  ]}
+                  onPress={() => { if (!isOwn) toggleCourse(c.code, c.name); }}
+                  activeOpacity={isOwn ? 1 : 0.75}>
+                  <View style={s.courseCardTop}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, flex: 1 }}>
+                      <Text style={[s.courseCode, { color: added ? C.purple : isOwn ? C.accent : C.textPrimary }]}>
+                        {c.code}
+                      </Text>
+                      <View style={[s.deptTag, { backgroundColor: added ? C.purple + '22' : C.bg4 }]}>
+                        <Text style={[s.deptTagText, { color: added ? C.purple : C.textMuted }]}>{c.dept}</Text>
+                      </View>
+                      {isOwn && (
+                        <View style={[s.deptTag, { backgroundColor: C.accentDim }]}>
+                          <Text style={[s.deptTagText, { color: C.accent }]}>My dept</Text>
+                        </View>
+                      )}
+                    </View>
+                    {!isOwn && (
+                      <View style={[s.checkCircle,
+                        { borderColor: added ? C.purple : C.border },
+                        added && { backgroundColor: C.purple }]}>
+                        {added && <Check size={10} color="#fff" />}
+                      </View>
+                    )}
+                  </View>
+                  <Text style={[s.courseName, { color: C.textPrimary }]} numberOfLines={2}>{c.name}</Text>
+                  {c.lecturer ? <Text style={[s.courseLect, { color: C.textSecondary }]} numberOfLines={1}>{c.lecturer}</Text> : null}
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
+          {/* Footer */}
+          <View style={[s.modalFooter, { backgroundColor: C.bg, borderTopColor: C.border }]}>
+            <Text style={[s.footerText, { color: C.textSecondary }]}>
+              {selectedCount} extra course{selectedCount !== 1 ? 's' : ''} in your timetable
             </Text>
-            <TouchableOpacity style={[styles.modalDoneBtn, { backgroundColor: C.accent }]} onPress={() => setShowCourseModal(false)}>
-              <Text style={styles.modalDoneBtnText}>Done</Text>
+            <TouchableOpacity style={[s.doneBtn, { backgroundColor: C.accent }]}
+              onPress={() => setShowCourseModal(false)}>
+              <Text style={s.doneBtnText}>Done</Text>
             </TouchableOpacity>
           </View>
         </SafeAreaView>
@@ -481,83 +596,137 @@ export default function SettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+// ─── Small helpers ────────────────────────────────────────────────────────────
+function SectionLabel({ label, colors }: { label: string; colors: any }) {
+  return (
+    <Text style={[s.sectionLabel, { color: colors.textMuted }]}>{label.toUpperCase()}</Text>
+  );
+}
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+const CARD_MX = 20;
+
+const s = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingTop: 20, paddingHorizontal: 20, paddingBottom: 18 },
-  title: { fontSize: 23, fontWeight: '800', letterSpacing: -0.4 },
-  subtitle: { fontSize: 12, fontWeight: '300', marginTop: 3 },
-  section: { marginHorizontal: 20, marginBottom: 16 },
-  sectionLabel: { fontSize: 10, fontWeight: '600', letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 10 },
-  cardGroup: { borderWidth: 1, borderRadius: 18, overflow: 'hidden' },
-  deptGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, padding: 12 },
-  deptMini: { width: (width - 72) / 2, borderWidth: 1.5, borderRadius: 10, padding: 10 },
-  deptMiniFullWidth: { width: width - 64 },
-  deptMiniCode: { fontSize: 14, fontWeight: '700' },
-  deptMiniName: { fontSize: 9, marginTop: 2 },
-  levelRow: { flexDirection: 'row', gap: 6, padding: 12 },
-  levelMini: { flex: 1, borderWidth: 1.5, borderRadius: 8, paddingVertical: 8, alignItems: 'center' },
-  levelMiniText: { fontSize: 12, fontWeight: '700' },
-  extraCoursesBtn: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1.5, borderRadius: 16, padding: 14 },
-  extraIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  header: { paddingTop: 24, paddingHorizontal: CARD_MX, paddingBottom: 8 },
+  pageTitle: { fontSize: 24, fontWeight: '800', letterSpacing: -0.5 },
+  pageSub: { fontSize: 12, fontWeight: '300', marginTop: 3 },
+  sectionLabel: {
+    fontSize: 10, fontWeight: '700', letterSpacing: 1.4,
+    marginHorizontal: CARD_MX, marginTop: 20, marginBottom: 8,
+  },
+  // Card (list-style)
+  card: {
+    marginHorizontal: CARD_MX, borderWidth: 1, borderRadius: 16, overflow: 'hidden',
+  },
+  // Department rows
+  deptRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 14, paddingVertical: 13,
+  },
+  deptRowLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  deptCodeBadge: {
+    width: 48, height: 28, borderRadius: 7,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  deptCodeText: { fontSize: 12, fontWeight: '800', letterSpacing: 0.2 },
+  deptNameText: { fontSize: 13, fontWeight: '400' },
+  // Level
+  levelRow: { flexDirection: 'row', marginHorizontal: CARD_MX },
+  levelBtn: {
+    flex: 1, borderWidth: 1.5, borderRadius: 12,
+    paddingVertical: 12, alignItems: 'center', justifyContent: 'center',
+  },
+  levelBtnNum: { fontSize: 16, fontWeight: '800' },
+  levelBtnSub: { fontSize: 8, letterSpacing: 0.6, marginTop: 2 },
+  // Save button
+  saveBtn: {
+    marginHorizontal: CARD_MX, marginTop: 12, borderRadius: 12,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 7, paddingVertical: 13,
+  },
+  saveBtnText: { fontSize: 14, fontWeight: '700', color: '#1a1600' },
+  // Extra courses
+  extraBtn: {
+    marginHorizontal: CARD_MX, flexDirection: 'row', alignItems: 'center',
+    gap: 12, borderWidth: 1.5, borderRadius: 16, padding: 14,
+  },
+  extraIcon: { width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   extraBtnTitle: { fontSize: 14, fontWeight: '600' },
   extraBtnSub: { fontSize: 11, fontWeight: '300', marginTop: 2 },
-  selectedChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 10 },
-  chip: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5 },
-  chipText: { fontSize: 11, fontWeight: '700' },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, borderBottomWidth: 1 },
-  rowLeft: { flexDirection: 'column', gap: 2 },
+  badge: { minWidth: 26, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
+  badgeNum: { fontSize: 12, fontWeight: '800' },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginHorizontal: CARD_MX, marginTop: 10 },
+  chip: {
+    flexDirection: 'row', alignItems: 'center', borderWidth: 1,
+    borderRadius: 20, paddingHorizontal: 10, paddingVertical: 6,
+  },
+  chipCode: { fontSize: 11, fontWeight: '700' },
+  // Rows
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14 },
   rowLabel: { fontSize: 13, fontWeight: '500' },
-  rowSub: { fontSize: 11, fontWeight: '300' },
-  rowValue: { fontSize: 12, fontWeight: '600' },
-  segmented: { flexDirection: 'row', borderRadius: 10, padding: 3, gap: 2 },
-  segmentOption: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8 },
-  segmentText: { fontSize: 11, fontWeight: '500' },
-  notifHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, borderBottomWidth: 1 },
-  roptLabel: { fontSize: 10, marginBottom: 8, letterSpacing: 0.4 },
-  reminderOpts: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginBottom: 12 },
-  ropt: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5 },
-  roptText: { fontSize: 11, fontWeight: '500' },
-  notifStatus: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 10, padding: 10, marginTop: 4 },
-  notifStatusIcon: { fontSize: 16 },
-  notifStatusTitle: { fontSize: 12, fontWeight: '500' },
-  notifStatusSub: { fontSize: 10, marginTop: 1 },
-  uploadHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderBottomWidth: 1 },
-  uploadIcon: { width: 36, height: 36, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  uploadTitle: { fontSize: 13, fontWeight: '500' },
-  uploadSub: { fontSize: 11, fontWeight: '300', marginTop: 1 },
-  lastImport: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1 },
-  lastImportText: { fontSize: 11 },
-  dropzone: { margin: 14, borderWidth: 1.5, borderStyle: 'dashed', borderRadius: 14, paddingVertical: 28, paddingHorizontal: 16, alignItems: 'center' },
-  dropzoneTitle: { fontSize: 13, fontWeight: '500', marginBottom: 4 },
-  dropzoneSub: { fontSize: 11, fontWeight: '300', lineHeight: 16 },
+  rowSub: { fontSize: 11, fontWeight: '300', marginTop: 2 },
+  aboutValue: { fontSize: 12, fontWeight: '600' },
+  // Segmented
+  seg: { flexDirection: 'row', borderRadius: 10, padding: 3, gap: 2 },
+  segOpt: { paddingHorizontal: 14, paddingVertical: 5, borderRadius: 8 },
+  segText: { fontSize: 11, fontWeight: '500' },
+  // Notifications
+  subLabel: { fontSize: 10, letterSpacing: 0.4, marginBottom: 8 },
+  reminderRow: { flexDirection: 'row', gap: 7, marginBottom: 12 },
+  minBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, paddingVertical: 8, alignItems: 'center' },
+  minText: { fontSize: 11, fontWeight: '600' },
+  notifStatus: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 12, padding: 12 },
+  notifTitle: { fontSize: 12, fontWeight: '600' },
+  notifSub: { fontSize: 10, marginTop: 1 },
+  // Upload
+  uploadIcon: {
+    width: 36, height: 36, borderRadius: 10, borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center', marginRight: 2,
+  },
+  lastImport: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 14, paddingVertical: 10 },
+  lastImportText: { fontSize: 11, flex: 1 },
+  dropzone: {
+    margin: 14, borderWidth: 1.5, borderStyle: 'dashed', borderRadius: 14,
+    paddingVertical: 26, paddingHorizontal: 16, alignItems: 'center',
+  },
+  dropTitle: { fontSize: 13, fontWeight: '500', marginBottom: 4 },
+  dropSub: { fontSize: 11, fontWeight: '300' },
   fileTypes: { flexDirection: 'row', gap: 6, marginTop: 10 },
-  fileType: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 6, fontSize: 10, fontWeight: '600', borderWidth: 1 },
+  fileTag: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 6, borderWidth: 1 },
+  fileTagText: { fontSize: 10, fontWeight: '600' },
   aiNote: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingBottom: 14 },
-  aiNoteText: { fontSize: 11, fontStyle: 'italic' },
-  saveBtn: { marginHorizontal: 20, borderRadius: 12, padding: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  saveBtnText: { fontSize: 14, fontWeight: '700', color: '#1a1600' },
-  saveNote: { textAlign: 'center', fontSize: 10, marginTop: 8, marginBottom: 24 },
+  aiNoteText: { fontSize: 11, fontStyle: 'italic', flex: 1 },
   // Modal
-  modalContainer: { flex: 1 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1 },
+  modalWrap: { flex: 1 },
+  modalHead: { flexDirection: 'row', alignItems: 'center', padding: 20, borderBottomWidth: 1 },
   modalTitle: { fontSize: 18, fontWeight: '800', letterSpacing: -0.3 },
   modalSub: { fontSize: 12, fontWeight: '300', marginTop: 2 },
-  modalClose: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  searchBar: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginTop: 12, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9 },
+  closeBtn: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  search: {
+    flexDirection: 'row', alignItems: 'center',
+    marginHorizontal: 16, marginTop: 12,
+    borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9,
+  },
   searchInput: { flex: 1, fontSize: 13 },
-  filterRow: { marginTop: 10, maxHeight: 44 },
-  filterChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5 },
-  filterChipText: { fontSize: 11, fontWeight: '600' },
-  modalCourseCard: { borderWidth: 1.5, borderRadius: 14, padding: 12, marginBottom: 8 },
-  modalCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 },
-  modalCode: { fontSize: 13, fontWeight: '800', letterSpacing: -0.2 },
+  filterChip: { paddingHorizontal: 13, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5 },
+  filterText: { fontSize: 11, fontWeight: '600' },
+  courseCard: { borderWidth: 1.5, borderRadius: 14, padding: 13, marginBottom: 8 },
+  courseCardTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 5 },
+  courseCode: { fontSize: 13, fontWeight: '800', letterSpacing: -0.2 },
   deptTag: { borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 },
-  deptTagText: { fontSize: 9, fontWeight: '700', letterSpacing: 0.4 },
-  modalName: { fontSize: 13, fontWeight: '500', lineHeight: 18 },
-  modalLecturer: { fontSize: 11, fontWeight: '300', marginTop: 2 },
-  checkCircle: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
-  modalFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderTopWidth: 1 },
-  modalFooterText: { fontSize: 13 },
-  modalDoneBtn: { borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10 },
-  modalDoneBtnText: { fontSize: 14, fontWeight: '700', color: '#1a1600' },
+  deptTagText: { fontSize: 9, fontWeight: '700', letterSpacing: 0.3 },
+  checkCircle: {
+    width: 22, height: 22, borderRadius: 11, borderWidth: 1.5,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  courseName: { fontSize: 13, fontWeight: '500', lineHeight: 18 },
+  courseLect: { fontSize: 11, fontWeight: '300', marginTop: 2 },
+  modalFooter: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    padding: 16, borderTopWidth: 1,
+  },
+  footerText: { fontSize: 13 },
+  doneBtn: { borderRadius: 10, paddingHorizontal: 22, paddingVertical: 10 },
+  doneBtnText: { fontSize: 14, fontWeight: '700', color: '#1a1600' },
 });
