@@ -7,7 +7,6 @@
     "icon": "./assets/images/icon.png",
     "scheme": "fettime",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true
     },
@@ -18,7 +17,6 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
     "web": {
@@ -45,6 +43,7 @@
       "reactCompiler": true
     },
     "extra": {
+      "geminiApiKey": "AIzaSyBibE0NN-1PGnbXB7F0ynX9dMLiUe5W0yo",
       "router": {},
       "eas": {
         "projectId": "df2f3320-ffd8-4634-9708-2760185d897f"

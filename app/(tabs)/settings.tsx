@@ -1,5 +1,6 @@
 import { COURSES, DAYS, DayOfWeek } from '@/constants/courses';
 import { useTheme } from '@/contexts/theme-context';
+import { parseTimetable, getGeminiKey } from '@/constants/parseTimetable';
 import { CustomCourse, useUserPreferences } from '@/hooks/use-user-preferences';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
@@ -103,6 +104,8 @@ export default function SettingsScreen() {
   const [localDept, setLocalDept] = useState<string | null>(null);
   const [localLevel, setLocalLevel] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadStep, setUploadStep] = useState('');
+  const [uploadError, setUploadError] = useState<string | null>(null);
   
   // AI Flow Modals
   const [showParseModal, setShowParseModal] = useState(false);
@@ -150,64 +153,64 @@ export default function SettingsScreen() {
   const setTimeFormat = (f: '24' | '12') => savePreferences({ timeFormat: f });
 
   const handleFileUpload = async () => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: '*/*',
-      });
-      if (!result.canceled && result.assets?.length > 0) {
-        const file = result.assets[0];
-        setIsUploading(true);
-        
-        try {
-          // Simulate AI processing delay (3 seconds)
-          await new Promise(res => setTimeout(res, 3000));
+    setUploadError(null);
 
-          // Mock parsed courses. In reality this would be the AI API output.
-          // Since it's a simulation, we construct some mock courses or try to parse as CSV if it IS a CSV.
-          let newCustomCourses: CustomCourse[] = [];
-          
-          if (file.name.endsWith('.csv')) {
-            const content = await FileSystem.readAsStringAsync(file.uri, { encoding: 'utf8' });
-            const lines = content.split('\n').filter(l => l.trim() !== '');
-            for (let i = 1; i < lines.length; i++) {
-              const cols = lines[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
-              if (cols.length >= 4) {
-                const dayStr = cols[2].toUpperCase().substring(0, 3) as DayOfWeek;
-                if (DAYS.includes(dayStr)) {
-                  newCustomCourses.push({
-                     id: Math.random().toString(36).substring(2, 10),
-                     code: cols[0], name: cols[1], day: dayStr, time: cols[3],
-                     hall: cols[4] || 'TBA', lecturer: cols[5] || 'TBA',
-                     dept: cols[6] || 'EXT', level: parseInt(cols[7]) || 100, isCustom: true
-                  });
-                }
-              }
-            }
-          } else {
-             // Mock AI response for PDF/DOCX
-             newCustomCourses = [
-               { id: Math.random().toString(36).substring(2, 10), code: 'AI101', name: 'Intro to AI parsed from ' + file.name, day: 'MON', time: '08:00-10:00', hall: 'TBA', lecturer: 'AI Bot', dept: 'EXT', level: 100, isCustom: true },
-               { id: Math.random().toString(36).substring(2, 10), code: 'AI102', name: 'Advanced AI Parsed Core', day: 'TUE', time: '10:00-12:00', hall: 'TBA', lecturer: 'AI Bot', dept: 'EXT', level: 200, isCustom: true }
-             ];
-          }
-          
-          if (newCustomCourses.length > 0) {
-             setPendingAIParsed(newCustomCourses);
-             setPendingFilename(file.name);
-             setShowParseModal(true);
-          } else {
-            showToast('No valid courses found in file', 'error');
-          }
-        } catch (readErr) {
-          console.error(readErr);
-          showToast('Failed to process file automatically.', 'error');
-        } finally {
-          setIsUploading(false);
-        }
-      }
+    let result;
+    try {
+      result = await DocumentPicker.getDocumentAsync({ type: '*/*' });
     } catch {
+      showToast('Could not open file picker', 'error');
+      return;
+    }
+    if (result.canceled || !result.assets?.length) return;
+
+    const file = result.assets[0];
+    const ext  = file.name.split('.').pop()?.toLowerCase() ?? '';
+
+    if (!['pdf','xlsx','xls','csv','docx','doc'].includes(ext)) {
+      showToast(`".${ext}" is not supported`, 'error');
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      // Get free Gemini key from app.config.js → .env or app.json extra
+      setUploadStep('Preparing…');
+      const apiKey = getGeminiKey(); // throws with setup instructions if missing
+
+      setUploadStep('Reading file…');
+      await new Promise(r => setTimeout(r, 200)); // let RN re-render
+
+      setUploadStep('Sending to Gemini AI…');
+      const parsed = await parseTimetable(file.uri, file.name, apiKey);
+
+      setUploadStep(`Found ${parsed.courses.length} sessions — finishing up…`);
+
+      // Map ParsedCourse → your CustomCourse shape
+      const newCourses: CustomCourse[] = parsed.courses.map((c: any) => ({
+        id:       Math.random().toString(36).substring(2, 10),
+        code:     c.code,
+        name:     c.name,
+        day:      c.day as any,
+        time:     c.time,
+        hall:     c.hall     ?? 'TBA',
+        lecturer: c.lecturer ?? 'TBA',
+        dept:     String(c.g1 ?? parsed.meta.abbreviation ?? 'EXT'),
+        level:    typeof c.g2 === 'number' ? c.g2 : 0,
+        isCustom: true,
+      }));
+
+      setPendingAIParsed(newCourses);
+      setPendingFilename(file.name);
+      setShowParseModal(true);
+
+    } catch (err: any) {
+      const msg = err?.message ?? 'Something went wrong. Please try again.';
+      setUploadError(msg);
+      showToast(msg, 'error');
+    } finally {
       setIsUploading(false);
-      showToast('Failed to open file picker', 'error');
+      setUploadStep('');
     }
   };
 
@@ -518,7 +521,9 @@ export default function SettingsScreen() {
               <>
                 <Sparkles size={26} color={C.purple} style={{ marginBottom: 8 }} />
                 <Text style={[s.dropTitle, { color: C.textPrimary }]}>Processing…</Text>
-                <Text style={[s.dropSub, { color: C.textSecondary }]}>AI is parsing your timetable</Text>
+                <Text style={[s.dropSub, { color: C.textSecondary }]}>
+                  {uploadStep || 'AI is parsing your timetable…'}
+                </Text>
               </>
             ) : (
               <>
@@ -532,6 +537,18 @@ export default function SettingsScreen() {
               </>
             )}
           </TouchableOpacity>
+          {uploadError ? (
+            <View style={{
+              marginHorizontal: 14, marginBottom: 8, padding: 12,
+              backgroundColor: C.bg4,
+              borderRadius: 10, borderWidth: 1,
+              borderColor: C.red + '44',
+            }}>
+              <Text style={{ color: C.red, fontSize: 12, lineHeight: 18 }}>
+                {uploadError}
+              </Text>
+            </View>
+          ) : null}
           <View style={s.aiNote}>
             <Sparkles size={13} color={C.purple} />
             <Text style={[s.aiNoteText, { color: C.textSecondary }]}>
